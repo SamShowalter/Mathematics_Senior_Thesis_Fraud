@@ -1,7 +1,156 @@
 import pandas as pd 
 import numpy as np 
+from scipy.spatial.distance import euclidean as euc
+import random
 
 class Sample():
 
-	def __init__(self):
-		pass
+	'''
+	Sample method can be:
+	 - SMOTE
+	 - Standard
+	 - Under
+
+	 Other attributes involve the specifics of the sample composition and SMOTE parameters for analysis
+	'''
+	def __init__(self, dataset, sample_method = 'SMOTE', SMOTE_Neighbors = 5, target_ratio = 0.40, total_size = 2000):
+		self.Data = dataset
+		self.Sample = dataset[0:0]
+		self.SampleMethod = sample_method
+		self.SMOTENeighbors = SMOTE_Neighbors
+		self.TargetRatio = target_ratio
+		self.TotalSize = total_size
+		self.SMOTENeighbors = SMOTE_Neighbors
+
+		#Orchestration package for sampler
+		self.Sample = self.SamplerOrch()
+
+		#Metadata about the composition of the sample
+
+		if self.SampleMethod == "Standard":
+			self.TotalRowNum = len(self.Sample.index)
+			self.NonFraudRowNum = len(self.Data[self.Data.iloc[:,-1] != 1])
+			self.FraudRowNum = len(self.Data[self.Data.iloc[:,-1] == 1].index)
+			self.FraudSynthRowNum = 0
+			self.FraudOrigRowNum = self.FraudRowNum
+
+		else:
+			self.TotalRowNum = len(self.Sample.index)
+			self.NonFraudRowNum = int(self.TotalSize * (1-self.TargetRatio))
+			self.FraudRowNum = self.TotalRowNum - self.NonFraudRowNum
+			self.FraudSynthRowNum = max(self.FraudRowNum - len(self.Data[self.Data.iloc[:,-1] == 1].index), 0)
+			self.FraudOrigRowNum = self.FraudRowNum - self.FraudSynthRowNum
+		
+		#print(self.TotalRowNum, self.NonFraudRowNum, self.FraudRowNum, self.FraudOrigRowNum, self.FraudSynthRowNum)
+
+
+	'''
+	This is the SMOTE sampling engine. It synthetically creates records of the minority class
+	(assumed to be class = 1) to bolster the robustness of the model. Its features can be 
+	tuned from the constructor itself.
+
+	ASSUMES that the sample of minority records is larger than the number truly existing.
+	Otherwise, the model should simply use Undersampling.
+	'''
+	def SMOTESampler(self):
+
+		#Separate records into fraudulent and non-fraudulent
+		nonFraudRecords = self.Data[self.Data.iloc[:,-1] != 1]
+		fraudRecords = self.Data[self.Data.iloc[:,-1] == 1]
+
+		# Find the number of Non-fraudulent records and synthetic fraudulent records needed
+		numNonFraudRecords = int(self.TotalSize * (1-self.TargetRatio))
+		numSynthFraudRecords = max(int(self.TotalSize * self.TargetRatio) - len(fraudRecords.index), 0)
+
+		#Add random sample of original records
+		self.Sample = self.Sample.append(nonFraudRecords.loc[[random.choice(nonFraudRecords.index) for index in range(numNonFraudRecords)], :], ignore_index = True)
+
+		#Randomly picks fraud records from the fraud records dataframe above (with replacement)
+		randomFraudRecords = fraudRecords.loc[[random.choice(fraudRecords.index) for index in range(numSynthFraudRecords)],:]
+		
+		# Add a placeholder Index so that duplicates can still be compared after the index is dropped
+		randomFraudRecords['placeholderIndex'] = randomFraudRecords.index
+		randomFraudRecords.reset_index(drop = True, inplace = True)
+
+		#For each randomly selected fraud record
+		for index in range(len(randomFraudRecords)):
+
+			#Select the reference record from the index
+			referenceRecord = randomFraudRecords.iloc[index,:]
+
+			#Removes any and all reference records from the reference DF to avoid self-matching
+			referenceDF = randomFraudRecords[randomFraudRecords.placeholderIndex != referenceRecord.placeholderIndex]
+			
+			#Creates a new column in referenceDF (removing duplicates) that has the euclidean distance of the record from the 
+			# reference record.
+			referenceDF['euclid'] = referenceDF.drop_duplicates().apply(lambda row: euc(row.iloc[2:-2],referenceRecord.iloc[2:-2]), axis = 1)
+
+			#Find the k nearest neighbors to the reference record
+			NearestNeighbors = referenceDF.nsmallest(self.SMOTENeighbors,'euclid')
+			
+			#reset index for proper selection purposes (drop old one)
+			NearestNeighbors.reset_index(drop = True, inplace = True)
+
+
+			#Pick a random neighbor from the dataframe of k nearest neighbors
+			randomNeighbor = NearestNeighbors.iloc[random.choice(NearestNeighbors.index),:-2]
+
+			#Generate the differences between the neighbor and the reference record (multiplied by a 0-1 rand #)
+			neighborDifferences = (randomNeighbor - referenceRecord[:-1]) * random.uniform(0,1)
+
+			#Create the synthetic record by including these differences
+			newSynthRecord = referenceRecord[:-1] + neighborDifferences
+
+			#Add the record to the dataframe
+			self.Sample = self.Sample.append(newSynthRecord, ignore_index = True)
+
+		#Add all of the original fraud records to the dataframe
+		self.Sample = self.Sample.append(fraudRecords, ignore_index = True)
+
+		# Return Sample
+		return self.Sample
+
+	'''
+	Undersampler assumes that the final sample will not need any synthetic fraud records. Therefore, it serves
+	primarily the undersample (as the name implies) from the majority class. This way the impact
+	of the fraudulent sample is much larger than it would be otherwise (possibly)
+	'''		
+	def UnderSampler(self):
+
+		# Find the number of Non-fraudulent records and fraudulent records needed
+		numNonFraudRecords = int(self.TotalSize * (1-self.TargetRatio))
+		numFraudRecords = int(self.TotalSize * self.TargetRatio)
+
+		#Create a random sample of the fraudulent and non-fraudulent data
+		nonFraudRecords = self.Data[self.Data.iloc[:,-1] != 1].sample(numNonFraudRecords)
+		#print(len(nonFraudRecords))
+		fraudRecords = self.Data[self.Data.iloc[:,-1] == 1].sample(numFraudRecords)
+		#print(len(fraudRecords))
+
+		#Add these random samples to the final Sample
+		self.Sample = self.Sample.append(nonFraudRecords, ignore_index = True)
+		self.Sample = self.Sample.append(fraudRecords, ignore_index = True)
+		#print(len(self.Sample))
+
+		#Return sample
+		return self.Sample
+		
+
+		
+	'''
+	Sampling orchestration package. This package takes input from the constructor and
+	directs it to the correct sampling functions.
+	'''
+	def SamplerOrch(self):
+		#Options for sampling
+		if self.SampleMethod == "Standard":
+			return self.Data
+		elif self.SampleMethod == "SMOTE":
+			return self.SMOTESampler()
+		elif self.SampleMethod == "Under":
+			return self.UnderSampler()
+
+
+		
+
+

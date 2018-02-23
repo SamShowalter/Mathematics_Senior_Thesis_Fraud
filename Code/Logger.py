@@ -1,53 +1,193 @@
 import datetime as dt 
 import pandas as pd 
 
+
+# NEEDS TO BE UPDATED FOR FRAUD DATA
+
 class Log():
 
 	# Collection Log tracks the information about the datasets 
 	# Being collected by API and ensures that all meta-data information 
 	# is stored.
-	def __init__(self, collectionLogName, 
-					   resMetadataName, 
+	def __init__(self, masterLogName, 
 					   resLogName, 
-					   collectionColNames, 
-					   resMetadataColNames,
+					   masterColNames, 
 					   resColNames):
 
-
-
 		#Two DataFrame logs for performance and data collection
-		self.CollectionLog = pd.DataFrame(columns = collectionColNames)
-		self.ResMetadataLog = pd.DataFrame(columns = resMetadataColNames)
+		self.MasterLog = pd.DataFrame(columns = masterColNames)
 		self.ResLog = pd.DataFrame(columns = resColNames)
 
-	# Add a record of an API pull from Quandl to the log
-	def addCollectionRecord(self, record):
+	# Add MasterLog record
+	def addMasterLogRecord(self, test):
 		new_record_df = pd.DataFrame(
-								      [[record.ExecutionDate,
-								       record.ExecutionTimeStart,
-								       record.Duration,
-								       record.sampleSize,
-									   record.StatusMessage]],
+								      [[
+								       #Test Execution Information
+								       test.ExecutionDate,
+								       test.ExecutionTimeStart,
+								       test.Duration,
+
+								       #Information from Sample
+								       test.Sample.SampleMethod,
+								       test.Sample.TotalRowNum,			#Total rows
+								       test.Sample.NonFraudRowNum,		#Non-fraud rows
+								       test.Sample.FraudOrigRowNum,		#Fraud original rows
+								       test.Sample.FraudSynthRowNum,	#Fraud synthetic rows
+
+								       #Information from modeler
+								       test.Modeler.Classifiers,
+								       test.Modeler.SVMParams,
+								       test.Modeler.RFEstimators,
+								       test.Modeler.KNNeighbors,
+								       test.Modeler.MonteCarloBool,
+								       test.Modeler.MonteCarloSampSize,
+								       test.Modeler.KfoldBool,
+								       test.Modeler.KfoldNum,
+								       test.Modeler.PrecisionWt,
+								       test.Modeler.RecallWt,
+
+								       #Modeler information about Support vector machine
+								       test.Modeler.SVMPerf[0],		#TP
+								       test.Modeler.SVMPerf[1],		#FP
+								       test.Modeler.SVMPerf[2],		#TN
+								       test.Modeler.SVMPerf[3],		#FN
+								       test.Modeler.SVMPerf[4],		#Positive precision
+								       test.Modeler.SVMPerf[5],		#Negative precision
+								       test.Modeler.SVMPerf[6],		#Positive recall
+								       test.Modeler.SVMPerf[7],		#Negative recall
+								       test.Modeler.SVMPerf[8],		#Precision
+								       test.Modeler.SVMPerf[9],		#Recall
+								       test.Modeler.SVMPerf[10],	#Accuracy
+								       test.Modeler.SVMPerf[11],	#F-measure
+
+								       #Modeler information about Random forest
+								       test.Modeler.RFPerf[0],		#TP
+								       test.Modeler.RFPerf[1],		#FP
+								       test.Modeler.RFPerf[2],		#TN
+								       test.Modeler.RFPerf[3],		#FN
+								       test.Modeler.RFPerf[4],		#Positive precision
+								       test.Modeler.RFPerf[5],		#Negative precision
+								       test.Modeler.RFPerf[6],		#Positive recall
+								       test.Modeler.RFPerf[7],		#Negative recall
+								       test.Modeler.RFPerf[8],		#Precision
+								       test.Modeler.RFPerf[9],		#Recall
+								       test.Modeler.RFPerf[10],		#Accuracy
+								       test.Modeler.RFPerf[11],		#F-measure
+
+								       #Modeler information about Gaussian Naive Bayes
+								       test.Modeler.GNBPerf[0],		#TP
+								       test.Modeler.GNBPerf[1],		#FP
+								       test.Modeler.GNBPerf[2],		#TN
+								       test.Modeler.GNBPerf[3],		#FN
+								       test.Modeler.GNBPerf[4],		#Positive precision
+								       test.Modeler.GNBPerf[5],		#Negative precision
+								       test.Modeler.GNBPerf[6],		#Positive recall
+								       test.Modeler.GNBPerf[7],		#Negative recall
+								       test.Modeler.GNBPerf[8],		#Precision
+								       test.Modeler.GNBPerf[9],		#Recall
+								       test.Modeler.GNBPerf[10],	#Accuracy
+								       test.Modeler.GNBPerf[11],	#F-measure#Modeler information about Gaussian Naive Bayes
+								       
+								       #Modeler information about K-Nearest Neighbors
+								       test.Modeler.KNNPerf[0],		#TP
+								       test.Modeler.KNNPerf[1],		#FP
+								       test.Modeler.KNNPerf[2],		#TN
+								       test.Modeler.KNNPerf[3],		#FN
+								       test.Modeler.KNNPerf[4],		#Positive precision
+								       test.Modeler.KNNPerf[5],		#Negative precision
+								       test.Modeler.KNNPerf[6],		#Positive recall
+								       test.Modeler.KNNPerf[7],		#Negative recall
+								       test.Modeler.KNNPerf[8],		#Precision
+								       test.Modeler.KNNPerf[9],		#Recall
+								       test.Modeler.KNNPerf[10],	#Accuracy
+								       test.Modeler.KNNPerf[11],	#F-measure
+
+								       #Modeler information about Logistic Regression
+								       test.Modeler.LOGPerf[0],		#TP
+								       test.Modeler.LOGPerf[1],		#FP
+								       test.Modeler.LOGPerf[2],		#TN
+								       test.Modeler.LOGPerf[3],		#FN
+								       test.Modeler.LOGPerf[4],		#Positive precision
+								       test.Modeler.LOGPerf[5],		#Negative precision
+								       test.Modeler.LOGPerf[6],		#Positive recall
+								       test.Modeler.LOGPerf[7],		#Negative recall
+								       test.Modeler.LOGPerf[8],		#Precision
+								       test.Modeler.LOGPerf[9],		#Recall
+								       test.Modeler.LOGPerf[10],	#Accuracy
+								       test.Modeler.LOGPerf[11],	#F-measure
+
+								       #Modeler information about Ensemble Weights
+								       test.Modeler.EnsembleBool,
+								       test.Modeler.EnsembleWts[0],		#SVM
+								       test.Modeler.EnsembleWts[1],		#RF
+								       test.Modeler.EnsembleWts[2],		#GNB
+								       test.Modeler.EnsembleWts[3],		#KNN
+								       test.Modeler.EnsembleWts[4],		#LOG
+
+								       #Modeler information about Ensemble Performance
+								       test.Modeler.EnsemblePerf[0],		#TP
+								       test.Modeler.EnsemblePerf[1],		#FP
+								       test.Modeler.EnsemblePerf[2],		#TN
+								       test.Modeler.EnsemblePerf[3],		#FN
+								       test.Modeler.EnsemblePerf[4],		#Positive precision
+								       test.Modeler.EnsemblePerf[5],		#Negative precision
+								       test.Modeler.EnsemblePerf[6],		#Positive recall
+								       test.Modeler.EnsemblePerf[7],		#Negative recall
+								       test.Modeler.EnsemblePerf[8],		#Precision
+								       test.Modeler.EnsemblePerf[9],		#Recall
+								       test.Modeler.EnsemblePerf[10],		#Accuracy
+								       test.Modeler.EnsemblePerf[11],		#F-measure
+
+								       #Results Log filename for the modeler
+								       test.Modeler.ResLogFilename]],
 
 									   #Add the Collection Log Column Names
-									   columns = self.CollectionLog.columns)
+									   columns = self.MasterLog.columns)
 
-		self.CollectionLog = pd.concat([self.CollectionLog ,new_record_df], axis = 0)
-		self.CollectionLog.reset_index(drop = True, inplace = True)
+		self.MasterLog = pd.concat([self.MasterLog ,new_record_df], axis = 0)
+		self.MasterLogv.reset_index(drop = True, inplace = True)
 
-	def addResultRecord(self, MLModeler, modelDuration, modelTag, accuracy, modelSpecificInfo = ""):
+	def addResultRecord(self, model):
 		new_metadata_df = pd.DataFrame(
-								      [[dt.datetime.now().date(),
+								      [[
+								      	#Test Execution Information
+								      	dt.datetime.now().date(),
 								       	dt.datetime.now().time(),
-								       	modelDuration,
-										MLModeler.StockCollector.StockTicker,
-										MLModeler.StockCollector.ActualDateStart,
-										MLModeler.StockCollector.ActualDateEnd,
-										modelTag,
-										MLModeler.StockCollector.TrendSpecific,
-										MLModeler.TestPeriodFoldSize,
-										modelSpecificInfo,
-										accuracy]],
+								       	model.ModelDurationSec,
+
+								       	#Train Data Information
+										model.TrainData[0],			#Total Rows
+										model.TrainData[1],			#Original Rows
+										model.TrainData[2],			#Synthetic Rows
+
+										#Test Data Information
+										model.TestData[0],			#Total Rows	
+										model.TestData[1],			#Original Rows
+										model.TestData[2],			#Synthetic Rows
+
+										#Model General Information
+										model.ModelName,
+										model.EnsembleWts[0],		#SVM
+										model.EnsembleWts[1],		#RF
+										model.EnsembleWts[2],		#GNB
+										model.EnsembleWts[3],		#KNN
+										model.EnsembleWts[4],		#LOG
+										model.PrecisionWt, model.RecallWt,
+
+										#Model performance information
+										test.Modeler.ModelPerf[0],		#TP
+								       	test.Modeler.ModelPerf[1],		#FP
+								       	test.Modeler.ModelPerf[2],		#TN
+								       	test.Modeler.ModelPerf[3],		#FN
+								       	test.Modeler.ModelPerf[4],		#Positive precision
+								       	test.Modeler.ModelPerf[5],		#Negative precision
+								       	test.Modeler.ModelPerf[6],		#Positive recall
+								       	test.Modeler.ModelPerf[7],		#Negative recall
+								       	test.Modeler.ModelPerf[8],		#Precision
+								       	test.Modeler.ModelPerf[9],		#Recall
+								       	test.Modeler.ModelPerf[10],		#Accuracy
+								       	test.Modeler.ModelPerf[11],		#F-measure
+								        ]],
 
 									   #Add the Collection Log Column Names
 									   columns = self.ResLog.columns)
@@ -58,11 +198,11 @@ class Log():
 
 	# Save the collection log as a csv
 	def saveCollectionLog(self):
-		self.CollectionLog.to_csv(logName + "_" + str(dt.datetime.now()) + "_CollectionLog.csv", sep = ",")
+		self.MasterLog.to_csv(masterLogName + "_" + str(dt.datetime.now()) + "_MasterLog.csv", sep = ",")
 
 	# Save the results log as a csv
 	def saveResultsLog(self):
-		self.CollectionLog.to_csv(logName + "_" + str(dt.datetime.now()) + "_ResultsLog.csv", sep = ",")
+		self.CollectionLog.to_csv(resLogName + "_" + str(dt.datetime.now()) + "_ResultsLog.csv", sep = ",")
 
 
 

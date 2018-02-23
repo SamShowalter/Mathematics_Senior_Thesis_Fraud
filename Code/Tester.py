@@ -3,5 +3,6 @@ import numpy as np
 
 class Test():
 
-	def __init__(self,):
-		pass
+	def __init__(self,Sampler,Modeler):
+		self.Sample = Sampler
+		self.Modeler = Modeler

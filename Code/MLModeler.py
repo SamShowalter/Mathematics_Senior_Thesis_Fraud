@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np 
 import datetime as dt
 from Logger import Log
+from sklearn.model_selection import train_test_split
 
 # K-Nearest Neighbors
 from sklearn.neighbors import KNeighborsClassifier
@@ -21,25 +22,32 @@ from sklearn.linear_model import SGDClassifier
 # Gaussian Naive Bayes Optimizer
 from sklearn.naive_bayes import GaussianNB
 
-
+# Class takes a dataset sample and runs all ML analysis on it, storing the results
 class Modeler():
 
 	def __init__(self,  sample,
 						log,
-					    test_period_fold_size = 1,			# Either 1 (day), 5 (week), 20 (month)
-						n_neighbors = 5, 					# 1 = 100 day test period
-						SVMparams = ('rbf',1,5), 			# 5 = 50 week (250 day) test period
-						n_estimators = 80,					# 20 = 25 month (500 day) test period
-						monteCarlo = True,
-						monteCarloSampSize = 100,
-						specificModel = None):
+					    test_period_fold_size = 1,
+					    test_ratio = 0.4,		
+						n_neighbors = 5, 					
+						SVMparams = ('rbf',1,5), 			
+						n_estimators = 30,					
+						monte_carlo = True,
+						monte_carlo_samp_size = 30,
+						prec_wt = 0.5,
+						specific_model = None):
 
-		self.sample = sample
+		self.Sample = sample
 		self.KNNeighbors = n_neighbors
 		self.SVMParams = SVMparams
 		self.TestPeriodFoldSize = test_period_fold_size
+		self.TestRatio = test_ratio
 		self.RFEstimators = n_estimators
-		self.SpecificModel = specificModel
+		self.SpecificModel = specific_model
+		self.MonteCarlo = monte_carlo
+		self.MonteCarloSampSize = monte_carlo_samp_size
+		self.PrecisionWt = prec_wt
+		self.RecallWt = (1 - prec_wt)
 		self.Log = log
 
 		classifiers = [self.RF_train_test_model,
@@ -48,7 +56,8 @@ class Modeler():
 		               self.KNN_train_test_model,
 		               self.SVM_train_test_model]
 
-		if self.monteCarlo:
+		# IF monte carlo analysis is asked for
+		if self.MonteCarlo:
 			self.model_engine(classifiers)
 
 	'''
@@ -125,86 +134,97 @@ class Modeler():
 	'''
 	returns accuracy of the sample
 	'''
-	def accuracy(actual, predicted):
-		return (actual == predicted).value_counts().tolist()[1] / actual.size
+	def accuracy(self, actual, predicted):
+		return (actual == predicted).value_counts()[True] / actual.size
 
 
 	'''
 	Positive precision as a function of True Positive and False Positive
 	'''
-	def posPrecision(TP, FP):
+	def posPrecision(self,TP, FP):
 		return TP / (TP + FP)
 
 
 	'''
 	Negative precision as a function of True Negative and False Negative
 	'''
-	def negPrecision(TN, FP):
+	def negPrecision(self,TN, FP):
 		return TN / (TN + FP)
 
 
 	'''
 	Positive recall as a function of True Positive and False Negative
 	'''
-	def posRecall(TP, FN):
+	def posRecall(self,TP, FN):
 		return TP / (TP + FN)
 
 
 	'''
 	Precision as a function of positive and negative precision
 	'''
-	def precision(pPrecision, nPrecision, pWeight, nWeight):
-		return (pPrecision * pWeight) + (nPrecision * nWeight)
+	def precision(self,pPrecision, nPrecision):
+		return (pPrecision * self.PrecisionWt) + (nPrecision * (1-self.PrecisionWt))
 
 	
 	'''
 	Recall as a function of positive and negative recall
 	'''
-	def recall(pRecall, nRecall, pWeight, nWeight):
-		return (pRecall * pWeight) + (nRecall * nWeight)
+	def recall(self,pRecall, nRecall):
+		return (pRecall * self.RecallWt) + (nRecall * (1-self.RecallWt))
 
 
 	'''
 	Negative precision as a function of True Negative and False Positive
 	'''
-	def negRecall(TN, FP):
+	def negRecall(self,TN, FP):
 		return TN / (TN + FP)
 
 	
 	'''
 	F-measure as a function of precision and recall
 	'''
-	def fMeasure(precision, recall):
+	def fMeasure(self,precision, recall):
 		return (2 * precision * recall) / (precision + recall)
 
 	'''
 	Evaluate performance of a test.
 	'''
-	def evaluatePerformance(actual, predicted, countsOnly = False):
+	def evaluatePerformance(self,actual, predicted, countsOnly = False):
+		# Variable initialization for consistent logging
+		self.EnsembleWts = (0,0,0,0,0)
+
 		resultsDF = pd.DataFrame(actual,predicted)
 
-		accuracy = (actual == predicted).value_counts().tolist()[1] / actual.size 
+		# Accuracy for the whole test
+		accuracy = self.accuracy(actual,predicted)
 
-		TP = (actual == 1 & predicted == 1).value_counts().tolist()[1] 
-		FP = (actual == 1 & predicted == 0).value_counts().tolist()[1] 
-		TN = (actual == 0 & predicted == 0).value_counts().tolist()[1] 
-		FN = (actual == 0 & predicted == 1).value_counts().tolist()[1] 
+		# True positive, False positive, True negative, False negative
+		TP = ((actual == 1) & (predicted == 1)).value_counts()[True] 
+		FP = ((actual == 1) & (predicted == 0)).value_counts()[True] 
+		TN = ((actual == 0) & (predicted == 0)).value_counts()[True] 
+		FN = ((actual == 0) & (predicted == 1)).value_counts()[True] 
 
+		# If the results only need counts (for visualization)
 		if countsOnly:
 			return (TP, FP, TN, FN)
 
-		posPrecision = posPrecision(TP,FP)
-		negPrecision = negPrecision(TN,FN)
-		posRecall = posRecall(TP, FN)
-		negRecall = negRecall(TN, FP)
+		# Precision and recall metrics (positive and negative)
+		posPrecision = self.posPrecision(TP,FP)
+		negPrecision = self.negPrecision(TN,FN)
+		posRecall = self.posRecall(TP, FN)
+		negRecall = self.negRecall(TN, FP)
 
-		precision = precision(posPrecision, negPrecision)
-		recall = recall(posRecall, negRecall)
+		# Weighted average total for precision and recall
+		precision = self.precision(posPrecision, negPrecision)
+		recall = self.recall(posRecall, negRecall)
 
-		fMeasure = fMeasure(precision, recall)
+		# F-measure for the dataset
+		fMeasure = self.fMeasure(precision, recall)
 
+		# Return all of these values to the dataset.
+		print(TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure)
 
-		return (posPrecision,negPrecision, posRecall, negRecall, precision, recall, fMeasure)
+		return (TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure)
 
 		
 
@@ -218,18 +238,41 @@ class Modeler():
 	models that you want to provide. For this model we are going to predict
 	all five.
 	'''
-	def model_engine(self,classifiers,test_ratio,X_train, X_test, y_train, y_test):
+	def model_engine(self,classifiers):
+
+
 	    results_dict = {}
 	    for classifier in classifiers:
 	        res_list = []
-	        model_tag = model.__name__.rsplit('_')[0] + "_Test_Ratio_" + str(test_ratio)
-	        for j in range(self.monteCarloSampSize):
-	            performance = model(X_train,X_test,y_train,y_test)
-	            res_list.append(performance)
+	        model_tag = classifier.__name__.rsplit('_')[0] + "_Test_Ratio_" + str(self.TestRatio)
+
+	        for j in range(self.MonteCarloSampSize):
+
+	        	#Start time for model
+	        	startTime = dt.datetime.utcnow()
+
+	        	#Get train and test variables
+	        	X_train, X_test, y_train, y_test = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
+
+	        	#Get performance
+	        	self.ModelPerf = classifier(X_train,X_test,y_train,y_test)
+
+	        	#Add record to results DF
+	        	res_list.append(self.ModelPerf)
+
+	        	self.ModelDurationSec = startTime - dt.datetime.utcnow()
+
+	        	#Add record to Logger
+	        	self.Log.addResultRecord(self)
+
+	        # Add results to results dict
 	        results_dict[model_tag] = res_list
 
 	    self.resultsDF = pd.DataFrame.from_dict(results_dict)
+	    print(self.resultsDF.describe())
 
+	    # Update the metadata records with average performance
 
+	    
 	def saveResultsDF(self, resultsName):
 		self.resultsDF.to_csv(logName + "_" + str(dt.datetime.now()) + "_ResultsDF.csv", sep = ",")
