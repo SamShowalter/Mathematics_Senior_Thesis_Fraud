@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np 
 import datetime as dt
 from Logger import Log
+import copy
 from sklearn.model_selection import train_test_split
 
 # K-Nearest Neighbors
@@ -22,11 +23,46 @@ from sklearn.linear_model import SGDClassifier
 # Gaussian Naive Bayes Optimizer
 from sklearn.naive_bayes import GaussianNB
 
+
+# Machine learning logger for performance 
+MLLog = Log("Test_Master_Log",  "Test_Results_Log",  
+								#Masterlog column names
+							  	["Master_Log"],
+
+								#Results column names
+								[[
+								#Execution Metadata
+								"Execution_Date",
+								"Execution_Time",
+								"Execution_Duration_Sec",
+
+								#Sample metadata
+								"Test_Ratio",
+								"Total_Row_Num",
+								"NonFraud_Row_Num",
+								"Fraud_Row_Num",
+								"Fraud_Orig_Row_Num",
+								"Fraud_Synth_Row_Num",
+
+								#Model metadata
+								"Model_Name",
+								"SVM_Wt", "RF_Wt", "GNB_Wt", "KNN_Wt", "LOG_Wt",
+								"Precision_Wt", "Recall_Wt",
+
+								#Model performance
+								"TP", "FP", "TN", "FN",
+								"Pos_Precision", "Neg_Precision",
+								"Pos_Recall", "Neg_Recall",
+								"Precision", "Recall",
+								"Accuracy", "F-Measure"]])
+
+#################################################################################################################################
+
 # Class takes a dataset sample and runs all ML analysis on it, storing the results
 class Modeler():
 
-	def __init__(self,  sample,
-						log,
+	def __init__(self,
+						sample = None,
 					    test_period_fold_size = 1,
 					    test_ratio = 0.4,		
 						n_neighbors = 5, 					
@@ -34,12 +70,17 @@ class Modeler():
 						n_estimators = 30,					
 						monte_carlo = True,
 						monte_carlo_samp_size = 30,
+						k_fold_bool = False,
+						ensemble_bool = False,
+						k_fold_num = 1,
 						prec_wt = 0.5,
 						specific_model = None):
 
-		self.Sample = sample
 		self.KNNeighbors = n_neighbors
 		self.SVMParams = SVMparams
+		self.KFoldBool = k_fold_bool
+		self.KFoldNum = k_fold_num
+		self.EnsembleBool = ensemble_bool
 		self.TestPeriodFoldSize = test_period_fold_size
 		self.TestRatio = test_ratio
 		self.RFEstimators = n_estimators
@@ -48,17 +89,31 @@ class Modeler():
 		self.MonteCarloSampSize = monte_carlo_samp_size
 		self.PrecisionWt = prec_wt
 		self.RecallWt = (1 - prec_wt)
-		self.Log = log
+		self.Log = copy.deepcopy(MLLog)
 
+	def setSample(self,sample):
+		self.Sample = sample
+		self.SampleInfo =  [self.Sample.TotalRowNum,
+							self.Sample.NonFraudRowNum,
+							self.Sample.FraudRowNum,
+							self.Sample.FraudSynthRowNum,
+							self.Sample.FraudOrigRowNum]
+
+	def run_model(self):
 		classifiers = [self.RF_train_test_model,
-		               self.LOG_train_test_model,
-		               self.GNB_train_test_model,
-		               self.KNN_train_test_model,
-		               self.SVM_train_test_model]
+			           self.LOG_train_test_model,
+			           self.GNB_train_test_model,
+			           self.KNN_train_test_model,
+			           self.SVM_train_test_model]
+
+		#Change to be dynamic
+		self.Classifiers = "All"
 
 		# IF monte carlo analysis is asked for
 		if self.MonteCarlo:
 			self.model_engine(classifiers)
+
+
 
 	'''
 	This is the sklearn KNN model. By passing in the train and test
@@ -135,7 +190,7 @@ class Modeler():
 	returns accuracy of the sample
 	'''
 	def accuracy(self, actual, predicted):
-		return (actual == predicted).value_counts()[True] / actual.size
+		return (actual == predicted).value_counts().get(True,0) / actual.size
 
 
 	'''
@@ -199,10 +254,10 @@ class Modeler():
 		accuracy = self.accuracy(actual,predicted)
 
 		# True positive, False positive, True negative, False negative
-		TP = ((actual == 1) & (predicted == 1)).value_counts()[True] 
-		FP = ((actual == 1) & (predicted == 0)).value_counts()[True] 
-		TN = ((actual == 0) & (predicted == 0)).value_counts()[True] 
-		FN = ((actual == 0) & (predicted == 1)).value_counts()[True] 
+		TP = ((actual == 1) & (predicted == 1)).value_counts().get(True,0)
+		FP = ((actual == 1) & (predicted == 0)).value_counts().get(True,0) 
+		TN = ((actual == 0) & (predicted == 0)).value_counts().get(True,0)
+		FN = ((actual == 0) & (predicted == 1)).value_counts().get(True,0)
 
 		# If the results only need counts (for visualization)
 		if countsOnly:
@@ -240,11 +295,13 @@ class Modeler():
 	'''
 	def model_engine(self,classifiers):
 
-
+		# Results dictionary
 	    results_dict = {}
+
+	    # Check tons of classifiers
 	    for classifier in classifiers:
 	        res_list = []
-	        model_tag = classifier.__name__.rsplit('_')[0] + "_Test_Ratio_" + str(self.TestRatio)
+	        model_tag = classifier.__name__.rsplit('_')[0]
 
 	        for j in range(self.MonteCarloSampSize):
 
@@ -254,13 +311,15 @@ class Modeler():
 	        	#Get train and test variables
 	        	X_train, X_test, y_train, y_test = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
 
-	        	#Get performance
+	        	#Get performance and other metadata
+	        	self.EnsembleWts = [0,0,0,0,0]
 	        	self.ModelPerf = classifier(X_train,X_test,y_train,y_test)
+	        	self.ModelName = model_tag
 
 	        	#Add record to results DF
 	        	res_list.append(self.ModelPerf)
 
-	        	self.ModelDurationSec = startTime - dt.datetime.utcnow()
+	        	self.ModelDurationSec = (dt.datetime.utcnow() - startTime).total_seconds()
 
 	        	#Add record to Logger
 	        	self.Log.addResultRecord(self)
@@ -268,11 +327,23 @@ class Modeler():
 	        # Add results to results dict
 	        results_dict[model_tag] = res_list
 
+	    #Format and store the average results
 	    self.resultsDF = pd.DataFrame.from_dict(results_dict)
-	    print(self.resultsDF.describe())
+	    averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0)
 
-	    # Update the metadata records with average performance
+	    #Store average results for each model (order does not matter because of keys)
+	    self.SVMPerf = averageResults['SVM']
+	    self.RFPerf = averageResults['RF']
+	    self.GNBPerf = averageResults['GNB']
+	    self.KNNPerf = averageResults['KNN']
+	    self.LOGPerf = averageResults['LOG']
 
-	    
+	    if not self.EnsembleBool:
+	    	self.EnsemblePerf = (0,0,0,0,0,0,0,0,0,0,0,0)
+
+	   	#Change this for when things are saved
+	    self.ResLogFilename = "None"
+
+
 	def saveResultsDF(self, resultsName):
 		self.resultsDF.to_csv(logName + "_" + str(dt.datetime.now()) + "_ResultsDF.csv", sep = ",")

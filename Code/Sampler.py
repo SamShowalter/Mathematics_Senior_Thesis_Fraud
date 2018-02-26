@@ -1,5 +1,6 @@
 import pandas as pd 
 import numpy as np 
+import copy
 from scipy.spatial.distance import euclidean as euc
 import random
 
@@ -149,6 +150,8 @@ class Sample():
 			return self.SMOTESampler()
 		elif self.SampleMethod == "Under":
 			return self.UnderSampler()
+		else:
+			print("ERROR: Bad sample method")
 
 
 		

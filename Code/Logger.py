@@ -23,14 +23,17 @@ class Log():
 		new_record_df = pd.DataFrame(
 								      [[
 								       #Test Execution Information
-								       test.ExecutionDate,
+								       test.ExecutionDateStart,
 								       test.ExecutionTimeStart,
-								       test.Duration,
+								       test.SampleDuration,
+								       test.ModelDuration,
+								       test.TestDuration,
 
 								       #Information from Sample
 								       test.Sample.SampleMethod,
 								       test.Sample.TotalRowNum,			#Total rows
-								       test.Sample.NonFraudRowNum,		#Non-fraud rows
+								       test.Sample.NonFraudRowNum,		#Total Non-fraud Rows
+								       test.Sample.FraudRowNum,			#Non-fraud rows
 								       test.Sample.FraudOrigRowNum,		#Fraud original rows
 								       test.Sample.FraudSynthRowNum,	#Fraud synthetic rows
 
@@ -39,12 +42,10 @@ class Log():
 								       test.Modeler.SVMParams,
 								       test.Modeler.RFEstimators,
 								       test.Modeler.KNNeighbors,
-								       test.Modeler.MonteCarloBool,
+								       test.Modeler.MonteCarlo,
 								       test.Modeler.MonteCarloSampSize,
-								       test.Modeler.KfoldBool,
-								       test.Modeler.KfoldNum,
-								       test.Modeler.PrecisionWt,
-								       test.Modeler.RecallWt,
+								       test.Modeler.KFoldBool, test.Modeler.KFoldNum,
+								       test.Modeler.PrecisionWt, test.Modeler.RecallWt,
 
 								       #Modeler information about Support vector machine
 								       test.Modeler.SVMPerf[0],		#TP
@@ -86,7 +87,7 @@ class Log():
 								       test.Modeler.GNBPerf[8],		#Precision
 								       test.Modeler.GNBPerf[9],		#Recall
 								       test.Modeler.GNBPerf[10],	#Accuracy
-								       test.Modeler.GNBPerf[11],	#F-measure#Modeler information about Gaussian Naive Bayes
+								       test.Modeler.GNBPerf[11],	#F-measure
 								       
 								       #Modeler information about K-Nearest Neighbors
 								       test.Modeler.KNNPerf[0],		#TP
@@ -145,7 +146,7 @@ class Log():
 									   columns = self.MasterLog.columns)
 
 		self.MasterLog = pd.concat([self.MasterLog ,new_record_df], axis = 0)
-		self.MasterLogv.reset_index(drop = True, inplace = True)
+		self.MasterLog.reset_index(drop = True, inplace = True)
 
 	def addResultRecord(self, model):
 		new_metadata_df = pd.DataFrame(
@@ -156,14 +157,17 @@ class Log():
 								       	model.ModelDurationSec,
 
 								       	#Train Data Information
-										model.TrainData[0],			#Total Rows
-										model.TrainData[1],			#Original Rows
-										model.TrainData[2],			#Synthetic Rows
+								       	model.TestRatio,
+										model.SampleInfo[0],			#Total Rows
+										model.SampleInfo[1],			#NonFraud Rows
+										model.SampleInfo[2],			#Number of fraud rows
+										model.SampleInfo[3],			#Original Fraud Rows
+										model.SampleInfo[4],			#Synthetic Fraud Rows
 
-										#Test Data Information
-										model.TestData[0],			#Total Rows	
-										model.TestData[1],			#Original Rows
-										model.TestData[2],			#Synthetic Rows
+										#Test Data Information (may not be needed or accessible. REVISIT)
+										# model.TestData[0],			#Total Rows	
+										# model.TestData[1],			#Original Rows
+										# model.TestData[2],			#Synthetic Rows
 
 										#Model General Information
 										model.ModelName,
@@ -175,18 +179,18 @@ class Log():
 										model.PrecisionWt, model.RecallWt,
 
 										#Model performance information
-										test.Modeler.ModelPerf[0],		#TP
-								       	test.Modeler.ModelPerf[1],		#FP
-								       	test.Modeler.ModelPerf[2],		#TN
-								       	test.Modeler.ModelPerf[3],		#FN
-								       	test.Modeler.ModelPerf[4],		#Positive precision
-								       	test.Modeler.ModelPerf[5],		#Negative precision
-								       	test.Modeler.ModelPerf[6],		#Positive recall
-								       	test.Modeler.ModelPerf[7],		#Negative recall
-								       	test.Modeler.ModelPerf[8],		#Precision
-								       	test.Modeler.ModelPerf[9],		#Recall
-								       	test.Modeler.ModelPerf[10],		#Accuracy
-								       	test.Modeler.ModelPerf[11],		#F-measure
+										model.ModelPerf[0],		#TP
+								       	model.ModelPerf[1],		#FP
+								       	model.ModelPerf[2],		#TN
+								       	model.ModelPerf[3],		#FN
+								       	model.ModelPerf[4],		#Positive precision
+								       	model.ModelPerf[5],		#Negative precision
+								       	model.ModelPerf[6],		#Positive recall
+								       	model.ModelPerf[7],		#Negative recall
+								       	model.ModelPerf[8],		#Precision
+								       	model.ModelPerf[9],		#Recall
+								       	model.ModelPerf[10],		#Accuracy
+								       	model.ModelPerf[11],		#F-measure
 								        ]],
 
 									   #Add the Collection Log Column Names
