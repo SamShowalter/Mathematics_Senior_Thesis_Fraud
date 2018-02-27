@@ -23,9 +23,8 @@ from sklearn.linear_model import SGDClassifier
 # Gaussian Naive Bayes Optimizer
 from sklearn.naive_bayes import GaussianNB
 
-
 # Machine learning logger for performance 
-MLLog = Log("Test_Master_Log",  "Test_Results_Log",  
+MLLog = Log("Master_Log",  "Results_Log",  
 								#Masterlog column names
 							  	["Master_Log"],
 
@@ -76,20 +75,26 @@ class Modeler():
 						prec_wt = 0.5,
 						specific_model = None):
 
+		#ML Model parameters
 		self.KNNeighbors = n_neighbors
 		self.SVMParams = SVMparams
+		self.RFEstimators = n_estimators
+
+		# Performance and logistic information
 		self.KFoldBool = k_fold_bool
 		self.KFoldNum = k_fold_num
 		self.EnsembleBool = ensemble_bool
 		self.TestPeriodFoldSize = test_period_fold_size
 		self.TestRatio = test_ratio
-		self.RFEstimators = n_estimators
-		self.SpecificModel = specific_model
 		self.MonteCarlo = monte_carlo
 		self.MonteCarloSampSize = monte_carlo_samp_size
 		self.PrecisionWt = prec_wt
 		self.RecallWt = (1 - prec_wt)
 		self.Log = copy.deepcopy(MLLog)
+		self.ResLogFilename = str(dt.datetime.now().strftime("%m_%d")) + "-" + str(dt.datetime.now().strftime("%H.%M")) + "-ResLog.csv"
+
+		#Specific model information
+		self.SpecificModel = specific_model
 
 	def setSample(self,sample):
 		self.Sample = sample
@@ -112,8 +117,6 @@ class Modeler():
 		# IF monte carlo analysis is asked for
 		if self.MonteCarlo:
 			self.model_engine(classifiers)
-
-
 
 	'''
 	This is the sklearn KNN model. By passing in the train and test
@@ -276,9 +279,10 @@ class Modeler():
 		# F-measure for the dataset
 		fMeasure = self.fMeasure(precision, recall)
 
-		# Return all of these values to the dataset.
+		# Return all of these values to the dataset. for debugging
 		print(TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure)
 
+		#Return the performance of the model
 		return (TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure)
 
 		
@@ -327,6 +331,9 @@ class Modeler():
 	        # Add results to results dict
 	        results_dict[model_tag] = res_list
 
+	        #Save Results Log
+	        self.Log.saveResultsLog(self.ResLogFilename)
+
 	    #Format and store the average results
 	    self.resultsDF = pd.DataFrame.from_dict(results_dict)
 	    averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0)
@@ -338,12 +345,6 @@ class Modeler():
 	    self.KNNPerf = averageResults['KNN']
 	    self.LOGPerf = averageResults['LOG']
 
+	    #Default the values of the ensemble if no ensemble exists
 	    if not self.EnsembleBool:
 	    	self.EnsemblePerf = (0,0,0,0,0,0,0,0,0,0,0,0)
-
-	   	#Change this for when things are saved
-	    self.ResLogFilename = "None"
-
-
-	def saveResultsDF(self, resultsName):
-		self.resultsDF.to_csv(logName + "_" + str(dt.datetime.now()) + "_ResultsDF.csv", sep = ",")

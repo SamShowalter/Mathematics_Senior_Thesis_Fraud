@@ -1,5 +1,6 @@
 import datetime as dt 
 import pandas as pd 
+import os
 
 
 # NEEDS TO BE UPDATED FOR FRAUD DATA
@@ -9,10 +10,14 @@ class Log():
 	# Collection Log tracks the information about the datasets 
 	# Being collected by API and ensures that all meta-data information 
 	# is stored.
-	def __init__(self, masterLogName, 
-					   resLogName, 
+	def __init__(self, master_log_name, 
+					   res_log_name, 
 					   masterColNames, 
 					   resColNames):
+
+		#Log names
+		self.MasterLogName = master_log_name
+		self.ResLogName = res_log_name
 
 		#Two DataFrame logs for performance and data collection
 		self.MasterLog = pd.DataFrame(columns = masterColNames)
@@ -201,12 +206,19 @@ class Log():
 
 
 	# Save the collection log as a csv
-	def saveCollectionLog(self):
-		self.MasterLog.to_csv(masterLogName + "_" + str(dt.datetime.now()) + "_MasterLog.csv", sep = ",")
+	def saveMasterLog(self):
+		#Change working directory for Master Logs
+		os.chdir("/Users/Sam/Documents/Depauw/04 Senior Year/Semester 2/Math_Senior_Seminar/Data/MasterLogs")
+
+		self.MasterLog.to_csv(str(dt.datetime.now().strftime("%m_%d")) + "-" + str(dt.datetime.now().strftime("%H.%M")) + "-" + self.MasterLogName + "_MasterLog.csv", sep = ",")
 
 	# Save the results log as a csv
-	def saveResultsLog(self):
-		self.CollectionLog.to_csv(resLogName + "_" + str(dt.datetime.now()) + "_ResultsLog.csv", sep = ",")
+	def saveResultsLog(self, resLogName):
+		#Change working directory for Result Logs
+		os.chdir("/Users/Sam/Documents/Depauw/04 Senior Year/Semester 2/Math_Senior_Seminar/Data/ResLogs")
+
+		#Save the log
+		self.ResLog.to_csv(resLogName, sep = ",")
 
 
 

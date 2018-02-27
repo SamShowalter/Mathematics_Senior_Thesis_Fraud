@@ -41,8 +41,6 @@ class Sample():
 			self.FraudRowNum = self.TotalRowNum - self.NonFraudRowNum
 			self.FraudSynthRowNum = max(self.FraudRowNum - len(self.Data[self.Data.iloc[:,-1] == 1].index), 0)
 			self.FraudOrigRowNum = self.FraudRowNum - self.FraudSynthRowNum
-		
-		#print(self.TotalRowNum, self.NonFraudRowNum, self.FraudRowNum, self.FraudOrigRowNum, self.FraudSynthRowNum)
 
 
 	'''
@@ -137,7 +135,6 @@ class Sample():
 		return self.Sample
 		
 
-		
 	'''
 	Sampling orchestration package. This package takes input from the constructor and
 	directs it to the correct sampling functions.

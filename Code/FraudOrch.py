@@ -13,8 +13,6 @@ os.chdir("/Users/Sam/Documents/Depauw/04 Senior Year/Semester 2/Math_Senior_Semi
 #Read in fraud data
 fraud_data = pd.read_csv("creditcard.csv")
 
-
-
 # Master Log for entire experimental study metadata. 
 MasterLog = Log("Test_Master_Log", "Test_Results_Log", 
 
@@ -117,14 +115,12 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 # Experimental Testing included below. Everything above is boilerplate code
 #############################################################################################################################################
 
-# sample1 = Sample(fraud_data, total_size = 1600)
-# print("\nOn to the Modeler!\n")
-# model1 = Modeler(copy.deepcopy(MLLog))
 
 test1 = Test(Sample(fraud_data, total_size = 1600),Modeler(),MasterLog)
 test2 = Test(Sample(fraud_data, total_size = 1000,sample_method = "Under"),Modeler(),MasterLog)
-#sample2 = Sample(fraud_data,sample_method = "Under", total_size = 1000)
-#sample3 = Sample(fraud_data,sample_method = "Standard")
+
+#Save all data from masterlog
+MasterLog.saveMasterLog()
 
 
 

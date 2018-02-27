@@ -9,7 +9,7 @@ class Test():
 	def __init__(self,sampler,modeler,Log):
 		#Time metadata
 		self.ExecutionDateStart = dt.datetime.now().date()
-		self.ExecutionTimeStart = dt.datetime.now().date()
+		self.ExecutionTimeStart = dt.datetime.now().time()
 		utc_start = dt.datetime.utcnow()
 
 		#Initialize log
@@ -34,6 +34,8 @@ class Test():
 
 		#Add masterlog record
 		self.Log.addMasterLogRecord(self)
+
+
 
 
 
