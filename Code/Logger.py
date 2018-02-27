@@ -30,7 +30,7 @@ class Log():
 								       #Test Execution Information
 								       test.ExecutionDateStart,
 								       test.ExecutionTimeStart,
-								       test.SampleDuration,
+								       test.Sample.SampleDuration,
 								       test.ModelDuration,
 								       test.TestDuration,
 
@@ -210,7 +210,7 @@ class Log():
 		#Change working directory for Master Logs
 		os.chdir("/Users/Sam/Documents/Depauw/04 Senior Year/Semester 2/Math_Senior_Seminar/Data/MasterLogs")
 
-		self.MasterLog.to_csv(str(dt.datetime.now().strftime("%m_%d")) + "-" + str(dt.datetime.now().strftime("%H.%M")) + "-" + self.MasterLogName + "_MasterLog.csv", sep = ",")
+		self.MasterLog.to_csv(str(dt.datetime.now().strftime("%m_%d")) + "-" + str(dt.datetime.now().strftime("%H.%M.%S")) + "-MasterLog.csv", sep = ",")
 
 	# Save the results log as a csv
 	def saveResultsLog(self, resLogName):

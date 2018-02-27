@@ -114,10 +114,12 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 #############################################################################################################################################
 # Experimental Testing included below. Everything above is boilerplate code
 #############################################################################################################################################
+s1 = Sample(fraud_data, total_size = 10000, target_ratio = 0.1)
 
-
-test1 = Test(Sample(fraud_data, total_size = 1600),Modeler(),MasterLog)
-test2 = Test(Sample(fraud_data, total_size = 1000,sample_method = "Under"),Modeler(),MasterLog)
+#test2 = Test(Sample(fraud_data, total_size = 1000,sample_method = "Under"),Modeler(),MasterLog)
+for i in range(1,11):
+	print("\n\n\n" + str(i) + "\n\n\n")
+	Test(s1,Modeler(specific_model = "RF", n_estimators = i*10,test_ratio = 0.3),MasterLog)
 
 #Save all data from masterlog
 MasterLog.saveMasterLog()

@@ -90,8 +90,10 @@ class Modeler():
 		self.MonteCarloSampSize = monte_carlo_samp_size
 		self.PrecisionWt = prec_wt
 		self.RecallWt = (1 - prec_wt)
+		
+		#Logging information
 		self.Log = copy.deepcopy(MLLog)
-		self.ResLogFilename = str(dt.datetime.now().strftime("%m_%d")) + "-" + str(dt.datetime.now().strftime("%H.%M")) + "-ResLog.csv"
+		self.ResLogFilename = str(dt.datetime.now().strftime("%m_%d")) + "-" + str(dt.datetime.now().strftime("%H.%M.%S")) + "-ResLog.csv"
 
 		#Specific model information
 		self.SpecificModel = specific_model
@@ -101,18 +103,23 @@ class Modeler():
 		self.SampleInfo =  [self.Sample.TotalRowNum,
 							self.Sample.NonFraudRowNum,
 							self.Sample.FraudRowNum,
-							self.Sample.FraudSynthRowNum,
-							self.Sample.FraudOrigRowNum]
+							self.Sample.FraudOrigRowNum,
+							self.Sample.FraudSynthRowNum]
 
 	def run_model(self):
-		classifiers = [self.RF_train_test_model,
-			           self.LOG_train_test_model,
+
+		#General Bank of Classifiers (used with  "All")
+		classifiers = [self.SVM_train_test_model,
+			           self.RF_train_test_model,
 			           self.GNB_train_test_model,
 			           self.KNN_train_test_model,
-			           self.SVM_train_test_model]
+			           self.LOG_train_test_model]
 
 		#Change to be dynamic
-		self.Classifiers = "All"
+		if self.SpecificModel is None:
+			self.Classifiers = "All"
+		else:
+			self.Classifiers = self.SpecificModel
 
 		# IF monte carlo analysis is asked for
 		if self.MonteCarlo:
@@ -279,7 +286,7 @@ class Modeler():
 		# F-measure for the dataset
 		fMeasure = self.fMeasure(precision, recall)
 
-		# Return all of these values to the dataset. for debugging
+		# Return all of these values to the dataset. for DEBUGGING
 		print(TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure)
 
 		#Return the performance of the model
@@ -302,10 +309,13 @@ class Modeler():
 		# Results dictionary
 	    results_dict = {}
 
-	    # Check tons of classifiers
+	    # Check all of classifiers
 	    for classifier in classifiers:
 	        res_list = []
 	        model_tag = classifier.__name__.rsplit('_')[0]
+
+	        if self.SpecificModel is not None and self.SpecificModel != model_tag:
+	        	continue
 
 	        for j in range(self.MonteCarloSampSize):
 
@@ -336,15 +346,17 @@ class Modeler():
 
 	    #Format and store the average results
 	    self.resultsDF = pd.DataFrame.from_dict(results_dict)
-	    averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0)
+	    averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0).to_dict()
 
 	    #Store average results for each model (order does not matter because of keys)
-	    self.SVMPerf = averageResults['SVM']
-	    self.RFPerf = averageResults['RF']
-	    self.GNBPerf = averageResults['GNB']
-	    self.KNNPerf = averageResults['KNN']
-	    self.LOGPerf = averageResults['LOG']
+	    self.SVMPerf = averageResults.get('SVM',(0,0,0,0,0,0,0,0,0,0,0,0))
+	    self.RFPerf = averageResults.get('RF',(0,0,0,0,0,0,0,0,0,0,0,0))
+	    self.GNBPerf = averageResults.get('GNB',(0,0,0,0,0,0,0,0,0,0,0,0))
+	    self.KNNPerf = averageResults.get('KNN',(0,0,0,0,0,0,0,0,0,0,0,0))
+	    self.LOGPerf = averageResults.get('LOG',(0,0,0,0,0,0,0,0,0,0,0,0))
 
 	    #Default the values of the ensemble if no ensemble exists
 	    if not self.EnsembleBool:
 	    	self.EnsemblePerf = (0,0,0,0,0,0,0,0,0,0,0,0)
+
+

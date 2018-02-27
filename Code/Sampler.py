@@ -1,6 +1,7 @@
 import pandas as pd 
 import numpy as np 
 import copy
+import datetime as dt
 from scipy.spatial.distance import euclidean as euc
 import random
 
@@ -15,8 +16,13 @@ class Sample():
 	 Other attributes involve the specifics of the sample composition and SMOTE parameters for analysis
 	'''
 	def __init__(self, dataset, sample_method = 'SMOTE', SMOTE_Neighbors = 5, target_ratio = 0.40, total_size = 2000):
+		utc_start = dt.datetime.utcnow()
 		self.Data = dataset
+
+		#Give the sample the same column names as the original dataset
 		self.Sample = dataset[0:0]
+
+		#Metadata about how (and how much) to sample
 		self.SampleMethod = sample_method
 		self.SMOTENeighbors = SMOTE_Neighbors
 		self.TargetRatio = target_ratio
@@ -27,7 +33,6 @@ class Sample():
 		self.Sample = self.SamplerOrch()
 
 		#Metadata about the composition of the sample
-
 		if self.SampleMethod == "Standard":
 			self.TotalRowNum = len(self.Sample.index)
 			self.NonFraudRowNum = len(self.Data[self.Data.iloc[:,-1] != 1])
@@ -35,12 +40,15 @@ class Sample():
 			self.FraudSynthRowNum = 0
 			self.FraudOrigRowNum = self.FraudRowNum
 
+		#If sampling with SMOTE or Under-sampling
 		else:
 			self.TotalRowNum = len(self.Sample.index)
 			self.NonFraudRowNum = int(self.TotalSize * (1-self.TargetRatio))
 			self.FraudRowNum = self.TotalRowNum - self.NonFraudRowNum
 			self.FraudSynthRowNum = max(self.FraudRowNum - len(self.Data[self.Data.iloc[:,-1] == 1].index), 0)
 			self.FraudOrigRowNum = self.FraudRowNum - self.FraudSynthRowNum
+
+		self.SampleDuration = (dt.datetime.utcnow() - utc_start).total_seconds()
 
 
 	'''
@@ -129,7 +137,6 @@ class Sample():
 		#Add these random samples to the final Sample
 		self.Sample = self.Sample.append(nonFraudRecords, ignore_index = True)
 		self.Sample = self.Sample.append(fraudRecords, ignore_index = True)
-		#print(len(self.Sample))
 
 		#Return sample
 		return self.Sample
@@ -147,6 +154,8 @@ class Sample():
 			return self.SMOTESampler()
 		elif self.SampleMethod == "Under":
 			return self.UnderSampler()
+
+		#If someone asks for an unavailable sample
 		else:
 			print("ERROR: Bad sample method")
 

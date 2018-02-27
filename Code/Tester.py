@@ -10,7 +10,7 @@ class Test():
 		#Time metadata
 		self.ExecutionDateStart = dt.datetime.now().date()
 		self.ExecutionTimeStart = dt.datetime.now().time()
-		utc_start = dt.datetime.utcnow()
+		utc_exec_start = dt.datetime.utcnow()
 
 		#Initialize log
 		self.Log = Log
@@ -18,9 +18,9 @@ class Test():
 		#Initialize sampler
 		self.Sample = sampler
 
-		#Sample duration information
-		self.SampleDuration = (dt.datetime.utcnow() - utc_start).total_seconds()
-
+		#Time the modeler
+		utc_model_start = dt.datetime.utcnow()
+		
 		#Initialize modeler
 		self.Modeler = modeler
 
@@ -29,8 +29,9 @@ class Test():
 		self.Modeler.run_model()
 
 		#Duration metadata
-		self.TestDuration = (dt.datetime.utcnow() - utc_start).total_seconds()
-		self.ModelDuration = self.TestDuration - self.SampleDuration
+		self.ModelDuration = (dt.datetime.utcnow() - utc_model_start).total_seconds()
+		self.TestDuration = (dt.datetime.utcnow() - utc_exec_start).total_seconds()
+		
 
 		#Add masterlog record
 		self.Log.addMasterLogRecord(self)
