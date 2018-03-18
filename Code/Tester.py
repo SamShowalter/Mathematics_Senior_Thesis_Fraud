@@ -1,5 +1,3 @@
-import pandas as pd 
-import numpy as np 
 from Logger import Log
 import datetime as dt
 import copy
@@ -8,8 +6,8 @@ class Test():
 
 	def __init__(self,sampler,modeler,Log):
 		#Time metadata
-		self.ExecutionDateStart = dt.datetime.now().date()
-		self.ExecutionTimeStart = dt.datetime.now().time()
+		self.ExecutionDateStart = str(dt.datetime.now().strftime("%Y-%m-%d"))
+		self.ExecutionTimeStart = str(dt.datetime.now().strftime("%H:%M:%S"))
 		utc_exec_start = dt.datetime.utcnow()
 
 		#Initialize log
@@ -17,6 +15,7 @@ class Test():
 
 		#Initialize sampler
 		self.Sample = sampler
+		self.Sample.runSampler()
 
 		#Time the modeler
 		utc_model_start = dt.datetime.utcnow()
@@ -32,9 +31,8 @@ class Test():
 		self.ModelDuration = (dt.datetime.utcnow() - utc_model_start).total_seconds()
 		self.TestDuration = (dt.datetime.utcnow() - utc_exec_start).total_seconds()
 		
-
 		#Add masterlog record
-		self.Log.addMasterLogRecord(self)
+		#self.Log.addMasterLogRecord(self)
 
 
 

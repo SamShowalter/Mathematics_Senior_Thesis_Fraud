@@ -52,6 +52,10 @@ class Log():
 								       test.Modeler.KFoldBool, test.Modeler.KFoldNum,
 								       test.Modeler.PrecisionWt, test.Modeler.RecallWt,
 
+								       #Information about cost (from modeler)
+								       test.Modeler.DefCostAmt,
+								       test.Modeler.FraudMult,
+
 								       #Modeler information about Support vector machine
 								       test.Modeler.SVMPerf[0],		#TP
 								       test.Modeler.SVMPerf[1],		#FP
@@ -65,6 +69,7 @@ class Log():
 								       test.Modeler.SVMPerf[9],		#Recall
 								       test.Modeler.SVMPerf[10],	#Accuracy
 								       test.Modeler.SVMPerf[11],	#F-measure
+								       test.Modeler.SVMPerf[12],	#Fraud cost
 
 								       #Modeler information about Random forest
 								       test.Modeler.RFPerf[0],		#TP
@@ -79,6 +84,7 @@ class Log():
 								       test.Modeler.RFPerf[9],		#Recall
 								       test.Modeler.RFPerf[10],		#Accuracy
 								       test.Modeler.RFPerf[11],		#F-measure
+								       test.Modeler.RFPerf[12],	#Fraud cost
 
 								       #Modeler information about Gaussian Naive Bayes
 								       test.Modeler.GNBPerf[0],		#TP
@@ -93,6 +99,7 @@ class Log():
 								       test.Modeler.GNBPerf[9],		#Recall
 								       test.Modeler.GNBPerf[10],	#Accuracy
 								       test.Modeler.GNBPerf[11],	#F-measure
+								       test.Modeler.GNBPerf[12],	#Fraud cost
 								       
 								       #Modeler information about K-Nearest Neighbors
 								       test.Modeler.KNNPerf[0],		#TP
@@ -107,6 +114,7 @@ class Log():
 								       test.Modeler.KNNPerf[9],		#Recall
 								       test.Modeler.KNNPerf[10],	#Accuracy
 								       test.Modeler.KNNPerf[11],	#F-measure
+								       test.Modeler.KNNPerf[12],	#Fraud cost
 
 								       #Modeler information about Logistic Regression
 								       test.Modeler.LOGPerf[0],		#TP
@@ -121,6 +129,7 @@ class Log():
 								       test.Modeler.LOGPerf[9],		#Recall
 								       test.Modeler.LOGPerf[10],	#Accuracy
 								       test.Modeler.LOGPerf[11],	#F-measure
+								       test.Modeler.LOGPerf[12],	#Fraud cost
 
 								       #Modeler information about Ensemble Weights
 								       test.Modeler.EnsembleBool,
@@ -143,6 +152,7 @@ class Log():
 								       test.Modeler.EnsemblePerf[9],		#Recall
 								       test.Modeler.EnsemblePerf[10],		#Accuracy
 								       test.Modeler.EnsemblePerf[11],		#F-measure
+								       test.Modeler.EnsemblePerf[12],		#Fraud cost
 
 								       #Results Log filename for the modeler
 								       test.Modeler.ResLogFilename]],
@@ -169,11 +179,6 @@ class Log():
 										model.SampleInfo[3],			#Original Fraud Rows
 										model.SampleInfo[4],			#Synthetic Fraud Rows
 
-										#Test Data Information (may not be needed or accessible. REVISIT)
-										# model.TestData[0],			#Total Rows	
-										# model.TestData[1],			#Original Rows
-										# model.TestData[2],			#Synthetic Rows
-
 										#Model General Information
 										model.ModelName,
 										model.EnsembleWts[0],		#SVM
@@ -194,8 +199,9 @@ class Log():
 								       	model.ModelPerf[7],		#Negative recall
 								       	model.ModelPerf[8],		#Precision
 								       	model.ModelPerf[9],		#Recall
-								       	model.ModelPerf[10],		#Accuracy
-								       	model.ModelPerf[11],		#F-measure
+								       	model.ModelPerf[10],	#Accuracy
+								       	model.ModelPerf[11],	#F-measure
+								       	model.ModelPerf[12],	#Fraud cost
 								        ]],
 
 									   #Add the Collection Log Column Names
@@ -208,14 +214,14 @@ class Log():
 	# Save the collection log as a csv
 	def saveMasterLog(self):
 		#Change working directory for Master Logs
-		os.chdir("/Users/Sam/Documents/Depauw/04 Senior Year/Semester 2/Math_Senior_Seminar/Data/MasterLogs")
+		os.chdir("/Users/Sam/Documents/Depauw/04_Senior_Year/Semester_2/Math_Senior_Seminar/Data/MasterLogs")
 
-		self.MasterLog.to_csv(str(dt.datetime.now().strftime("%m_%d")) + "-" + str(dt.datetime.now().strftime("%H.%M.%S")) + "-MasterLog.csv", sep = ",")
+		self.MasterLog.to_csv(str(dt.datetime.now().strftime("%m-%d_%H.%M.%S")) + "-MasterLog.csv", sep = ",")
 
 	# Save the results log as a csv
 	def saveResultsLog(self, resLogName):
 		#Change working directory for Result Logs
-		os.chdir("/Users/Sam/Documents/Depauw/04 Senior Year/Semester 2/Math_Senior_Seminar/Data/ResLogs")
+		os.chdir("/Users/Sam/Documents/Depauw/04_Senior_Year/Semester_2/Math_Senior_Seminar/Data/ResLogs")
 
 		#Save the log
 		self.ResLog.to_csv(resLogName, sep = ",")

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np 
 import datetime as dt
 from Logger import Log
+from Ensembler import Ensemble
 import copy
 from sklearn.model_selection import train_test_split
 
@@ -53,7 +54,8 @@ MLLog = Log("Master_Log",  "Results_Log",
 								"Pos_Precision", "Neg_Precision",
 								"Pos_Recall", "Neg_Recall",
 								"Precision", "Recall",
-								"Accuracy", "F-Measure"]])
+								"Accuracy", "F-Measure",
+								"Fraud_Cost"]])
 
 #################################################################################################################################
 
@@ -73,7 +75,10 @@ class Modeler():
 						ensemble_bool = False,
 						k_fold_num = 1,
 						prec_wt = 0.5,
-						specific_model = None):
+						specific_model = None,
+						full_test = True,
+						default_cost = 1.0,
+						fraud_mult = 2.54):
 
 		#ML Model parameters
 		self.KNNeighbors = n_neighbors
@@ -84,9 +89,13 @@ class Modeler():
 		self.KFoldBool = k_fold_bool
 		self.KFoldNum = k_fold_num
 		self.EnsembleBool = ensemble_bool
+		if self.EnsembleBool:
+			self.EnsemblePreds = pd.DataFrame()
+		self.EnsembleActive = False
 		self.TestPeriodFoldSize = test_period_fold_size
 		self.TestRatio = test_ratio
 		self.MonteCarlo = monte_carlo
+		self.FullTest = full_test
 		self.MonteCarloSampSize = monte_carlo_samp_size
 		self.PrecisionWt = prec_wt
 		self.RecallWt = (1 - prec_wt)
@@ -97,6 +106,10 @@ class Modeler():
 
 		#Specific model information
 		self.SpecificModel = specific_model
+
+		#Cost information
+		self.DefCostAmt = default_cost
+		self.FraudMult = fraud_mult
 
 	def setSample(self,sample):
 		self.Sample = sample
@@ -115,15 +128,18 @@ class Modeler():
 			           self.KNN_train_test_model,
 			           self.LOG_train_test_model]
 
-		#Change to be dynamic
+		#Dynamically Change what classifiers are used
 		if self.SpecificModel is None:
 			self.Classifiers = "All"
 		else:
 			self.Classifiers = self.SpecificModel
 
+		#Update result log filename
+		self.ResLogFilename = self.Classifiers + "-" + self.ResLogFilename
+
 		# IF monte carlo analysis is asked for
 		if self.MonteCarlo:
-			self.model_engine(classifiers)
+			self.model_engine_orch(classifiers)
 
 	'''
 	This is the sklearn KNN model. By passing in the train and test
@@ -137,7 +153,7 @@ class Modeler():
 		predicted = KNN_clf.predict(X_test)
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount)
 
 	'''
 	This is the sklearn SVM model. By passing in the train and test
@@ -151,7 +167,7 @@ class Modeler():
 		predicted = SVM_clf.predict(X_test)
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount)
 
 	'''
 	This is the sklearn GNB model. By passing in the train and test
@@ -165,7 +181,7 @@ class Modeler():
 		predicted = GNB_clf.predict(X_test)
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount)
 
 	'''
 	This is the sklearn Random Forest model. By passing 
@@ -177,9 +193,10 @@ class Modeler():
 		RF_clf = RandomForestClassifier(n_estimators = self.RFEstimators)
 		RF_clf.fit(X_train, y_train)
 		predicted = RF_clf.predict(X_test)
+
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount)
 
 
 	'''
@@ -194,7 +211,7 @@ class Modeler():
 		predicted = LOG_clf.predict(X_test)
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount)
 
 	'''
 	returns accuracy of the sample
@@ -207,58 +224,80 @@ class Modeler():
 	Positive precision as a function of True Positive and False Positive
 	'''
 	def posPrecision(self,TP, FP):
-		return TP / (TP + FP)
+		try:
+			return TP / (TP + FP)
+		except:
+			return 0
 
 
 	'''
 	Negative precision as a function of True Negative and False Negative
 	'''
 	def negPrecision(self,TN, FP):
-		return TN / (TN + FP)
+		try:
+			return TN / (TN + FP)
+		except:
+			return 0
 
 
 	'''
 	Positive recall as a function of True Positive and False Negative
 	'''
 	def posRecall(self,TP, FN):
-		return TP / (TP + FN)
+		try:
+			return TP / (TP + FN)
+		except:
+			return 0
 
 
 	'''
 	Precision as a function of positive and negative precision
 	'''
 	def precision(self,pPrecision, nPrecision):
-		return (pPrecision * self.PrecisionWt) + (nPrecision * (1-self.PrecisionWt))
+		return (pPrecision * 0.5) + (nPrecision * 0.5)
 
-	
+
 	'''
 	Recall as a function of positive and negative recall
 	'''
 	def recall(self,pRecall, nRecall):
-		return (pRecall * self.RecallWt) + (nRecall * (1-self.RecallWt))
+		return (pRecall * 0.5) + (nRecall * 0.5)
 
 
 	'''
 	Negative precision as a function of True Negative and False Positive
 	'''
 	def negRecall(self,TN, FP):
-		return TN / (TN + FP)
+		
+		try:
+			return TN / (TN + FP)
+		except:
+			return 0
 
-	
 	'''
 	F-measure as a function of precision and recall
 	'''
 	def fMeasure(self,precision, recall):
+		if (precision + recall) == 0:
+			return 0
+
 		return (2 * precision * recall) / (precision + recall)
 
 	'''
-	Evaluate performance of a test.
+	Evaluate performance of a test. All metrics used
 	'''
-	def evaluatePerformance(self,actual, predicted, countsOnly = False):
+	def evaluatePerformance(self,actual, predicted, amounts):
 		# Variable initialization for consistent logging
 		self.EnsembleWts = (0,0,0,0,0)
 
-		resultsDF = pd.DataFrame(actual,predicted)
+		#Results data frame (for finding costs)
+		resultsDF = pd.DataFrame()
+		resultsDF['actual'] = actual
+		resultsDF['predicted'] = predicted
+		resultsDF['amount'] = amounts
+
+		if self.EnsembleBool and self.EnsembleActive:
+			self.EnsemblePreds[self.ModelName + "_preds"] = predicted
 
 		# Accuracy for the whole test
 		accuracy = self.accuracy(actual,predicted)
@@ -269,9 +308,13 @@ class Modeler():
 		TN = ((actual == 0) & (predicted == 0)).value_counts().get(True,0)
 		FN = ((actual == 0) & (predicted == 1)).value_counts().get(True,0)
 
-		# If the results only need counts (for visualization)
-		if countsOnly:
-			return (TP, FP, TN, FN)
+		#Print results DF
+		#print(resultsDF)
+
+		#Get the total cost of the model
+		fraudChargesFound = resultsDF[(resultsDF.actual == 1) & (resultsDF.predicted == 1)].loc[:,'amount'].sum()
+		fraudChargesLost = resultsDF[(resultsDF.actual == 1) & (resultsDF.predicted == 0)].loc[:,'amount'].sum()
+		fraudCost = self.fraudCost(TP, fraudChargesFound, FP,fraudChargesLost,FN)
 
 		# Precision and recall metrics (positive and negative)
 		posPrecision = self.posPrecision(TP,FP)
@@ -287,12 +330,31 @@ class Modeler():
 		fMeasure = self.fMeasure(precision, recall)
 
 		# Return all of these values to the dataset. for DEBUGGING
-		print(TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure)
+		print(TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure, fraudCost)
 
 		#Return the performance of the model
-		return (TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure)
+		return (TP, FP, TN, FN, posPrecision, negPrecision, posRecall, negRecall, precision, recall, accuracy, fMeasure, fraudCost)
 
-		
+	#Determine the cost of the fraud detection algorithm
+	def fraudCost(self, TP, TPAmt, FP, FPAmt, FN):
+		'''
+		True negatives cost nothing
+		False negatives cost a fixed rate of contacting customer (or unblocking charge)
+		True positives pay the company the cost of the charge saved, less the cost of dealing with charge * 10
+		False positives cost the charge amount multiplied by the fraud multipler
+		'''
+		return (-(TPAmt - self.DefCostAmt * TP*10) + FP*(self.DefCostAmt)) + FPAmt*(self.FraudMult) + (FN * (self.DefCostAmt))
+
+
+	'''
+	model_engine_orch determines which model engine to run (ensemble or not)
+	'''
+	def model_engine_orch(self,classifiers):
+		if not self.EnsembleBool:
+			self.model_engine_standard(classifiers)
+		else:
+			self.model_engine_standard(classifiers)
+			self.model_engine_ensemble(classifiers)
 
 	'''
 	Main engine of the model. For each model specified above, this 
@@ -304,59 +366,138 @@ class Modeler():
 	models that you want to provide. For this model we are going to predict
 	all five.
 	'''
-	def model_engine(self,classifiers):
+	def model_engine_standard(self,classifiers):
 
 		# Results dictionary
-	    results_dict = {}
+		results_dict = {}
 
 	    # Check all of classifiers
-	    for classifier in classifiers:
-	        res_list = []
-	        model_tag = classifier.__name__.rsplit('_')[0]
+		for classifier in classifiers:
+			res_list = []
+			self.ModelName = classifier.__name__.rsplit('_')[0]
 
-	        if self.SpecificModel is not None and self.SpecificModel != model_tag:
-	        	continue
+			if self.SpecificModel is not None and self.SpecificModel != self.ModelName:
+				continue
 
-	        for j in range(self.MonteCarloSampSize):
+			for j in range(self.MonteCarloSampSize):
 
-	        	#Start time for model
-	        	startTime = dt.datetime.utcnow()
+				#Start time for model
+				startTime = dt.datetime.utcnow()
 
-	        	#Get train and test variables
-	        	X_train, X_test, y_train, y_test = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
+				# #Get train and test variables
+				# X_train, X_test, y_train, y_test = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
 
-	        	#Get performance and other metadata
-	        	self.EnsembleWts = [0,0,0,0,0]
-	        	self.ModelPerf = classifier(X_train,X_test,y_train,y_test)
-	        	self.ModelName = model_tag
+				# #Full dataset to be predicted
+				# X_test = pd.concat([self.Sample.TestData.iloc[:,:-1], X_test], ignore_index = True)
+				# y_test = pd.concat([self.Sample.TestData.iloc[:,-1], y_test], ignore_index = True)
 
-	        	#Add record to results DF
-	        	res_list.append(self.ModelPerf)
+				#Get performance and other metadata
+				self.EnsembleWts = [0,0,0,0,0]
+				self.ModelPerf = classifier(self.Sample.Sample.iloc[:,:-1],self.Sample.TestData.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],self.Sample.TestData.iloc[:,-1])
 
-	        	self.ModelDurationSec = (dt.datetime.utcnow() - startTime).total_seconds()
+				#Add record to results DF
+				res_list.append(self.ModelPerf)
 
-	        	#Add record to Logger
-	        	self.Log.addResultRecord(self)
+				#Recode duration of the model
+				self.ModelDurationSec = (dt.datetime.utcnow() - startTime).total_seconds()
+
+				#Add record to Logger
+				self.Log.addResultRecord(self)
+
+				#Resample master sample
+				self.Sample.Resample()
 
 	        # Add results to results dict
-	        results_dict[model_tag] = res_list
+			results_dict[self.ModelName] = res_list
 
 	        #Save Results Log
-	        self.Log.saveResultsLog(self.ResLogFilename)
+			self.Log.saveResultsLog(self.ResLogFilename)
 
 	    #Format and store the average results
-	    self.resultsDF = pd.DataFrame.from_dict(results_dict)
-	    averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0).to_dict()
+		self.resultsDF = pd.DataFrame.from_dict(results_dict)
+		averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0).to_dict()
 
 	    #Store average results for each model (order does not matter because of keys)
-	    self.SVMPerf = averageResults.get('SVM',(0,0,0,0,0,0,0,0,0,0,0,0))
-	    self.RFPerf = averageResults.get('RF',(0,0,0,0,0,0,0,0,0,0,0,0))
-	    self.GNBPerf = averageResults.get('GNB',(0,0,0,0,0,0,0,0,0,0,0,0))
-	    self.KNNPerf = averageResults.get('KNN',(0,0,0,0,0,0,0,0,0,0,0,0))
-	    self.LOGPerf = averageResults.get('LOG',(0,0,0,0,0,0,0,0,0,0,0,0))
+		self.SVMPerf = averageResults.get('SVM',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.RFPerf = averageResults.get('RF',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.GNBPerf = averageResults.get('GNB',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.KNNPerf = averageResults.get('KNN',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.LOGPerf = averageResults.get('LOG',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.EnsemblePerf = averageResults.get('Ensemble',(0,0,0,0,0,0,0,0,0,0,0,0,0))
 
-	    #Default the values of the ensemble if no ensemble exists
-	    if not self.EnsembleBool:
-	    	self.EnsemblePerf = (0,0,0,0,0,0,0,0,0,0,0,0)
+
+	'''
+	Main engine of the model for the ensemble. For each model specified above, this 
+	function will store the performance of each model, then record any additional information
+	about the ensemble's performance
+	'''
+	def model_engine_ensemble(self,classifiers):
+
+		#Active ensemble
+		self.EnsembleActive = True
+		model_tag = "Ensemble"
+
+		# Check all of classifiers
+		for j in range(self.MonteCarloSampSize):
+
+			#Initialize Ensemble object
+			self.Ensemble = Ensemble(self)
+
+			#Get train and test variables
+			X_train, X_test, y_train, y_test = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
+			
+			#Rest index in testing data
+			X_test.Amount.reset_index(drop = True, inplace = True)
+			y_test.reset_index(drop = True, inplace = True)
+
+			#Run through and test each classifier to get base predictions
+			for classifier in classifiers:
+
+				self.ModelName = classifier.__name__.rsplit('_')[0]
+
+				#Start time for model
+				startTime = dt.datetime.utcnow()
+
+				#Get performance and other metadata
+				self.ModelPerf = classifier(X_train,X_test,y_train,y_test)
+				
+				#Get duration of the model
+				self.ModelDurationSec = (dt.datetime.utcnow() - startTime).total_seconds()
+
+			#Add final attributes to dataframe to check accuracy
+			self.EnsemblePreds['actual'] = self.Sample.Sample.iloc[:-1]
+			self.EnsemblePreds['amount'] = self.Sample.TestData["Amount"]
+
+			#Evolve the ensemble model
+			self.EnsembleWts = self.Ensemble.evolve()
+			self.ModelPerf = self.evaluatePerformance(self.Modeler.EnsemblePreds['ensemble_predicted'], self.Sample.TestData.iloc[:,-1])
+
+			#Get performance of the ensemble
+			res_list.append(self.ModelPerf)
+
+			#Add record to Logger
+			self.Log.addResultRecord(self)
+
+		# Add results to results dict
+		results_dict[model_tag] = res_list
+
+		#Save Results Log
+		self.Log.saveResultsLog(self.ResLogFilename)
+
+		#Format and store the average results
+		self.resultsDF = pd.DataFrame.from_dict(results_dict)
+		averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0).to_dict()
+
+		#Store average results for each model (order does not matter because of keys)
+		self.SVMPerf = averageResults.get('SVM',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.RFPerf = averageResults.get('RF',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.GNBPerf = averageResults.get('GNB',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.KNNPerf = averageResults.get('KNN',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+		self.LOGPerf = averageResults.get('LOG',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+
+		#This will be the only one not equal to zero
+		self.EnsemblePerf = averageResults.get('Ensemble',(0,0,0,0,0,0,0,0,0,0,0,0,0))
+
+
 
 

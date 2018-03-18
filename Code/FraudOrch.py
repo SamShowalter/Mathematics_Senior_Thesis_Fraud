@@ -2,13 +2,14 @@ from Logger import Log
 from MLModeler import Modeler 
 from Tester import Test 
 from Sampler import Sample
+from Ensembler import Ensemble
 import copy
 import pandas as pd 
 import numpy as np 
 import os
 
 #Change working directory to import data
-os.chdir("/Users/Sam/Documents/Depauw/04 Senior Year/Semester 2/Math_Senior_Seminar/Data")
+os.chdir("/Users/Sam/Documents/Depauw/04_Senior_Year/Semester_2/Math_Senior_Seminar/Data")
 
 #Read in fraud data
 fraud_data = pd.read_csv("creditcard.csv")
@@ -45,7 +46,10 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									"Monte_Carlo_Samp_Size",
 									"Kfold_Bool", "Kfold_Num",
 									"Precision_Wt", "Recall_Wt",
-									#10
+									
+									#Cost metaparameters
+									"Default_Fraud_Cost",
+									"Fraud_Multiplier",
 
 									#Modeler SVM Performance
 									"SVM_TP", "SVM_FP", "SVM_TN", "SVM_FN",
@@ -53,6 +57,7 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									"SVM_Pos_Recall", "SVM_Neg_Recall",
 									"SVM_Precision", "SVM_Recall",
 									"SVM_Accuracy", "SVM_F_Measure",
+									"SVM_Fraud_Cost",
 									#12
 
 									#Model Random Forest Performance   
@@ -61,6 +66,7 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									"RF_Pos_Recall", "RF_Neg_Recall",
 									"RF_Precision", "RF_Recall",
 									"RF_Accuracy", "RF_F_Measure", 
+									"RF_Fraud_Cost",
 									#12
 
 									#Model Gaussian Naive Bayes performance
@@ -69,6 +75,7 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									"GNB_Pos_Recall", "GNB_Neg_Recall",
 									"GNB_Precision", "GNB_Recall",
 									"GNB_Accuracy", "GNB_F_Measure",
+									"GNB_Fraud_Cost",
 									#12 
 
 									#Model KNN performance
@@ -77,6 +84,7 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									"KNN_Pos_Recall", "KNN_Neg_Recall",
 									"KNN_Precision", "KNN_Recall",
 									"KNN_Accuracy", "KNN_F_Measure",
+									"KNN_Fraud_Cost",
 									#12
 
 									#Model Logistic performance 
@@ -85,6 +93,7 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									"LOG_Pos_Recall", "LOG_Neg_Recall",
 									"LOG_Precision", "LOG_Recall",
 									"LOG_Accuracy", "LOG_F_Measure",
+									"LOG_Fraud_Cost",
 									#12
 
 									#Model Ensemble meta-parameters
@@ -99,6 +108,7 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									"Ensemble_Pos_Recall", "Ensemble_Neg_Recall",
 									"Ensemble_Precision", "Ensemble_Recall",
 									"Ensemble_Accuracy", "Ensemble_F_Measure",
+									"Ensemble_Fraud_Cost",
 									#12
 
 									#Results log filename
@@ -108,21 +118,49 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									#Results column names
 									["Results_Log"])
 
-#################################################################################################################################
+#############################################################################################################################################
+#Email functionality so that updates can be received in real time.
 
+#############################################################################################################################################
+# Send emails about progress
+def sendProgressEmail(subject, message):
+	#Establish server
+	server = smtplib.SMTP('smtp.gmail.com', 587)
+	server.starttls()
+
+	#Log in to my email account
+	server.login("dpudatascience@gmail.com", "Data4good!")
+
+	#Send the final message
+	final_message = 'Subject: {}\n\n{}'.format(subject, message)
+	server.sendmail("dpudatascience@gmail.com", "samuelrshowalter@gmail.com", final_message)
+
+	#Quit the server
+	server.quit()
+
+def generateProgressInformation(Test, ProgressInfo):
+	pass
 
 #############################################################################################################################################
 # Experimental Testing included below. Everything above is boilerplate code
 #############################################################################################################################################
-s1 = Sample(fraud_data, total_size = 10000, target_ratio = 0.1)
+s1 = Sample(fraud_data, 
+			sample_method = 'SMOTE',
+			total_size = 1000, 
+			target_ratio = 0.2)
 
-#test2 = Test(Sample(fraud_data, total_size = 1000,sample_method = "Under"),Modeler(),MasterLog)
-for i in range(1,11):
-	print("\n\n\n" + str(i) + "\n\n\n")
-	Test(s1,Modeler(specific_model = "RF", n_estimators = i*10,test_ratio = 0.3),MasterLog)
+#make copies of the masterlog
+
+# Test(s1,Modeler(test_ratio = 0.3), MasterLog)
+Test(s1,
+	Modeler(test_ratio = 0.2, 
+			ensemble_bool = True, 
+			monte_carlo_samp_size = 1,
+			full_test = True),
+	MasterLog)
 
 #Save all data from masterlog
-MasterLog.saveMasterLog()
+#MasterLog.saveMasterLog()
 
 
 

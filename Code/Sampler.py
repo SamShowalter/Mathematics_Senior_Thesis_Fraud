@@ -14,10 +14,14 @@ class Sample():
 	 - Under
 
 	 Other attributes involve the specifics of the sample composition and SMOTE parameters for analysis
+
+	 NOTE: ANY SMOTE TESTS WITH LESS THAN 492 FRAUD RECORDS WILL ESSENTIALLY BE UNDER-SAMPLING. ALWAYS HAVE MORE
 	'''
-	def __init__(self, dataset, sample_method = 'SMOTE', SMOTE_Neighbors = 5, target_ratio = 0.40, total_size = 2000):
+	def __init__(self, dataset, sample_method = 'SMOTE', SMOTE_Neighbors = 5, target_ratio = 0.20, total_size = 2000):
 		utc_start = dt.datetime.utcnow()
-		self.Data = dataset
+
+		#Separate data into train and testing subsamples.
+		self.FullData = dataset
 
 		#Give the sample the same column names as the original dataset
 		self.Sample = dataset[0:0]
@@ -28,6 +32,23 @@ class Sample():
 		self.TargetRatio = target_ratio
 		self.TotalSize = total_size
 		self.SMOTENeighbors = SMOTE_Neighbors
+
+		#Run the sampler
+		self.runSampler()
+
+		#Record the duration of the sampler
+		self.SampleDuration = (dt.datetime.utcnow() - utc_start).total_seconds()
+
+	#Resample master sample
+	def Resample(self):
+		self.runSampler()
+
+	#Resample master sample
+	def runSampler(self):
+
+		#Get Training and testing data separation
+		self.Data = self.FullData.sample(frac = self.TargetRatio)
+		self.TestData = self.FullData[~self.FullData.index.isin(self.Data.index)]
 
 		#Orchestration package for sampler
 		self.Sample = self.SamplerOrch()
@@ -48,8 +69,6 @@ class Sample():
 			self.FraudSynthRowNum = max(self.FraudRowNum - len(self.Data[self.Data.iloc[:,-1] == 1].index), 0)
 			self.FraudOrigRowNum = self.FraudRowNum - self.FraudSynthRowNum
 
-		self.SampleDuration = (dt.datetime.utcnow() - utc_start).total_seconds()
-
 
 	'''
 	This is the SMOTE sampling engine. It synthetically creates records of the minority class
@@ -65,12 +84,20 @@ class Sample():
 		nonFraudRecords = self.Data[self.Data.iloc[:,-1] != 1]
 		fraudRecords = self.Data[self.Data.iloc[:,-1] == 1]
 
+		print(len(fraudRecords),len(nonFraudRecords))
+
 		# Find the number of Non-fraudulent records and synthetic fraudulent records needed
 		numNonFraudRecords = int(self.TotalSize * (1-self.TargetRatio))
 		numSynthFraudRecords = max(int(self.TotalSize * self.TargetRatio) - len(fraudRecords.index), 0)
 
 		#Add random sample of original records
-		self.Sample = self.Sample.append(nonFraudRecords.loc[[random.choice(nonFraudRecords.index) for index in range(numNonFraudRecords)], :], ignore_index = True)
+		nonFraudSample = nonFraudRecords.sample(n = numNonFraudRecords)
+		nonFraudRemaining = nonFraudRecords[~nonFraudRecords.index.isin(nonFraudSample.index)]
+
+		#print(len(self.TestData),len(nonFraudRemaining))
+		self.TestData = pd.concat([self.TestData, nonFraudRemaining], ignore_index = True)
+		#print(len(self.TestData))
+		self.Sample = self.Sample.append(nonFraudSample)
 
 		#Randomly picks fraud records from the fraud records dataframe above (with replacement)
 		randomFraudRecords = fraudRecords.loc[[random.choice(fraudRecords.index) for index in range(numSynthFraudRecords)],:]
@@ -97,7 +124,6 @@ class Sample():
 			
 			#reset index for proper selection purposes (drop old one)
 			NearestNeighbors.reset_index(drop = True, inplace = True)
-
 
 			#Pick a random neighbor from the dataframe of k nearest neighbors
 			randomNeighbor = NearestNeighbors.iloc[random.choice(NearestNeighbors.index),:-2]
