@@ -64,17 +64,14 @@ class Modeler():
 
 	def __init__(self,
 						sample = None,
-					    test_period_fold_size = 1,
 					    test_ratio = 0.4,		
 						n_neighbors = 5, 					
 						SVMparams = ('rbf',1,5), 			
 						n_estimators = 30,					
-						monte_carlo = True,
 						monte_carlo_samp_size = 30,
-						k_fold_bool = False,
 						ensemble_bool = False,
-						k_fold_num = 1,
 						prec_wt = 0.5,
+						recall_wt = 0.5,
 						specific_model = None,
 						default_cost = 1.0,
 						fraud_mult = 2.54):
@@ -85,20 +82,18 @@ class Modeler():
 		self.RFEstimators = n_estimators
 
 		# Performance and logistic information
-		self.KFoldBool = k_fold_bool
-		self.KFoldNum = k_fold_num
 		self.EnsembleBool = ensemble_bool
 
 		#Houses all predictions for each model to be used in ensemble
 		if self.EnsembleBool:
-			self.EnsemblePreds = pd.DataFrame()
+			self.EnsembleTrainDF = pd.DataFrame()
+			self.EnsembleTestDF = pd.DataFrame()
 
-		self.TestPeriodFoldSize = test_period_fold_size
+		# Test period fold size
 		self.TestRatio = test_ratio
-		self.MonteCarlo = monte_carlo
 		self.MonteCarloSampSize = monte_carlo_samp_size
 		self.PrecisionWt = prec_wt
-		self.RecallWt = (1 - prec_wt)
+		self.RecallWt = recall_wt
 		
 		#Logging information
 		self.Log = copy.deepcopy(MLLog)
@@ -112,7 +107,10 @@ class Modeler():
 		self.FraudMult = fraud_mult
 
 	def setSample(self,sample):
+
 		self.Sample = sample
+
+		#Set sample information
 		self.SampleInfo =  [self.Sample.TotalRowNum,
 							self.Sample.NonFraudRowNum,
 							self.Sample.FraudRowNum,
@@ -138,8 +136,7 @@ class Modeler():
 		self.ResLogFilename = self.Classifiers + "-" + self.ResLogFilename
 
 		# IF monte carlo analysis is asked for
-		if self.MonteCarlo:
-			self.model_engine(classifiers)
+		self.model_engine(classifiers)
 
 	'''
 	This is the sklearn KNN model. By passing in the train and test
@@ -147,13 +144,13 @@ class Modeler():
 	does exactly that and then returns the accuracy, as found
 	with the function iter_accuracy
 	'''
-	def KNN_train_test_model(self, X_train, X_test, y_train, y_test):
+	def KNN_train_test_model(self, X_train, X_test, y_train, y_test, ensemble_train = False):
 		KNN_clf = KNeighborsClassifier(n_neighbors = self.KNNeighbors)
 		KNN_clf.fit(X_train,y_train)
 		predicted = KNN_clf.predict(X_test)
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted,X_test.Amount)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount,ensemble_train)
 
 	'''
 	This is the sklearn SVM model. By passing in the train and test
@@ -161,13 +158,13 @@ class Modeler():
 	does exactly that and then returns the accuracy, as found
 	with the function iter_accuracy
 	'''
-	def SVM_train_test_model(self, X_train, X_test, y_train, y_test):
+	def SVM_train_test_model(self, X_train, X_test, y_train, y_test, ensemble_train = False):
 		SVM_clf = SVC(kernel = self.SVMParams[0], C = self.SVMParams[1], gamma = self.SVMParams[2])
 		SVM_clf.fit(X_train,y_train)
 		predicted = SVM_clf.predict(X_test)
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted,X_test.Amount)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount,ensemble_train)
 
 	'''
 	This is the sklearn GNB model. By passing in the train and test
@@ -175,13 +172,13 @@ class Modeler():
 	does exactly that and then returns the accuracy, as found
 	with the function iter_accuracy
 	'''
-	def GNB_train_test_model(self, X_train, X_test, y_train, y_test):
+	def GNB_train_test_model(self, X_train, X_test, y_train, y_test, ensemble_train = False):
 		GNB_clf = GaussianNB()
 		GNB_clf.fit(X_train, y_train)
 		predicted = GNB_clf.predict(X_test)
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted,X_test.Amount)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount,ensemble_train)
 
 	'''
 	This is the sklearn Random Forest model. By passing 
@@ -189,14 +186,14 @@ class Modeler():
 	This function does exactly that and then returns the accuracy, as 
 	found with the function iter_accuracy.
 	'''
-	def RF_train_test_model(self, X_train, X_test, y_train, y_test):
+	def RF_train_test_model(self, X_train, X_test, y_train, y_test, ensemble_train = False):
 		RF_clf = RandomForestClassifier(n_estimators = self.RFEstimators)
 		RF_clf.fit(X_train, y_train)
 		predicted = RF_clf.predict(X_test)
 
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted,X_test.Amount)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount,ensemble_train)
 
 
 	'''
@@ -205,13 +202,13 @@ class Modeler():
 	This function does exactly that and then returns the accuracy, as 
 	found with the function iter_accuracy.
 	'''
-	def LOG_train_test_model(self, X_train, X_test, y_train, y_test):
+	def LOG_train_test_model(self, X_train, X_test, y_train, y_test, ensemble_train = False):
 		LOG_clf = LogisticRegression()
 		LOG_clf.fit(X_train, y_train)
 		predicted = LOG_clf.predict(X_test)
 		actual = y_test
 
-		return self.evaluatePerformance(actual,predicted,X_test.Amount)
+		return self.evaluatePerformance(actual,predicted,X_test.Amount, ensemble_train)
 
 	'''
 	returns accuracy of the sample
@@ -286,7 +283,7 @@ class Modeler():
 	'''
 	Evaluate performance of a test. All metrics used
 	'''
-	def evaluatePerformance(self,actual, predicted, amounts):
+	def evaluatePerformance(self,actual, predicted, amounts, ensemble_train = False):
 		# Variable initialization for consistent logging
 		self.EnsembleWts = (0,0,0,0,0)
 
@@ -297,7 +294,10 @@ class Modeler():
 		resultsDF['amount'] = amounts
 
 		if self.EnsembleBool:
-			self.EnsemblePreds[self.ModelName + "_preds"] = predicted
+			if ensemble_train:
+				self.EnsembleTrainDF[self.ModelName + "_preds"] = predicted
+			else:
+				self.EnsembleTestDF[self.ModelName + "_preds"] = predicted
 
 		# Accuracy for the whole test
 		accuracy = self.accuracy(actual,predicted)
@@ -352,85 +352,6 @@ class Modeler():
 		else:
 			self.ResultsDict[self.ModelName].append(self.ModelPerf)
 
-	# '''
-	# model_engine_orch determines which model engine to run (ensemble or not)
-	# '''
-	# def model_engine_orch(self,classifiers):
-	# 	if not self.EnsembleBool:
-	# 		self.model_engine_standard(classifiers)
-	# 	else:
-	# 		self.model_engine_standard(classifiers)
-	# 		self.model_engine_ensemble(classifiers)
-
-	'''
-	Main engine of the model. For each model specified above, this 
-	function will run it and store the accuracy data as a dictionary.
-	The keys for this dictionary are the names of the functions above,
-	before the first underscore. This function allows you to specify
-	the number of samples you would like to collect, the test ratio for
-	how much of the dataset you want to predict, and a list of the
-	models that you want to provide. For this model we are going to predict
-	all five.
-	'''
-	def model_engine_standard(self,classifiers):
-
-		# Results dictionary
-		self.ResultsDict = {}
-
-	    # Check all of classifiers
-		for classifier in classifiers:
-			res_list = []
-			self.ModelName = classifier.__name__.rsplit('_')[0]
-
-			if self.SpecificModel is not None and self.SpecificModel != self.ModelName:
-				continue
-
-			for j in range(self.MonteCarloSampSize):
-
-				#Start time for model
-				startTime = dt.datetime.utcnow()
-
-				# #Get train and test variables
-				# X_train, X_test, y_train, y_test = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
-
-				# #Full dataset to be predicted
-				# X_test = pd.concat([self.Sample.TestData.iloc[:,:-1], X_test], ignore_index = True)
-				# y_test = pd.concat([self.Sample.TestData.iloc[:,-1], y_test], ignore_index = True)
-
-				#Get performance and other metadata
-				self.EnsembleWts = [0,0,0,0,0]
-				self.ModelPerf = classifier(self.Sample.Sample.iloc[:,:-1],self.Sample.TestData.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],self.Sample.TestData.iloc[:,-1])
-
-				#Add record to results DF
-				res_list.append(self.ModelPerf)
-
-				#Recode duration of the model
-				self.ModelDurationSec = (dt.datetime.utcnow() - startTime).total_seconds()
-
-				#Add record to Logger
-				self.Log.addResultRecord(self)
-
-				#Resample master sample
-				self.Sample.Resample()
-
-	        # Add results to results dict
-			self.ResultsDict[self.ModelName] = res_list
-
-	        #Save Results Log
-			self.Log.saveResultsLog(self.ResLogFilename)
-
-	    #Format and store the average results
-		self.resultsDF = pd.DataFrame.from_dict(self.ResultsDict)
-		averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0).to_dict()
-
-	    #Store average results for each model (order does not matter because of keys)
-		self.SVMPerf = averageResults.get('SVM',(0,0,0,0,0,0,0,0,0,0,0,0,0))
-		self.RFPerf = averageResults.get('RF',(0,0,0,0,0,0,0,0,0,0,0,0,0))
-		self.GNBPerf = averageResults.get('GNB',(0,0,0,0,0,0,0,0,0,0,0,0,0))
-		self.KNNPerf = averageResults.get('KNN',(0,0,0,0,0,0,0,0,0,0,0,0,0))
-		self.LOGPerf = averageResults.get('LOG',(0,0,0,0,0,0,0,0,0,0,0,0,0))
-		self.EnsemblePerf = averageResults.get('Ensemble',(0,0,0,0,0,0,0,0,0,0,0,0,0))
-
 
 	'''
 	Main engine of the model for the ensemble. For each model specified above, this 
@@ -448,12 +369,21 @@ class Modeler():
 			#Initialize Ensemble object
 			self.Ensemble = Ensemble(self)
 
-			#Get train and test variables
-			X_train, X_test, y_train, y_test = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
-			
-			#Rest index in testing data
-			X_test.Amount.reset_index(drop = True, inplace = True)
-			y_test.reset_index(drop = True, inplace = True)
+			#Default uses entire sample
+			X_train = self.Sample.Sample.iloc[:,:-1]
+			X_test = self.Sample.TestData.iloc[:,:-1]
+			y_train = self.Sample.Sample.iloc[:,-1]
+			y_test = self.Sample.TestData.iloc[:,-1]
+
+			#Adjust train_and test if the ensemble needs to be trained
+			if self.EnsembleBool:
+
+				#Get train and test variables, ignoring all test Data
+				X_train_ensemble, X_test_ensemble, y_train_ensemble, y_test_ensemble = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
+				
+				#Rest index in testing data
+				X_test_ensemble.Amount.reset_index(drop = True, inplace = True)
+				y_test_ensemble.reset_index(drop = True, inplace = True)
 
 			#Run through and test each classifier to get base predictions
 			for classifier in classifiers:
@@ -465,6 +395,11 @@ class Modeler():
 				startTime = dt.datetime.utcnow()
 
 				#Get performance and other metadata
+				if self.EnsembleBool:
+					#Do not need to store the performance of models for train data
+					classifier(X_train_ensemble,X_test_ensemble,y_train_ensemble,y_test_ensemble, ensemble_train = True)
+				
+				#Final model performance that needs to be stored
 				self.ModelPerf = classifier(X_train,X_test,y_train,y_test)
 
 				#Add model performance to results DF 
@@ -473,25 +408,32 @@ class Modeler():
 				#Get duration of the model
 				self.ModelDurationSec = (dt.datetime.utcnow() - startTime).total_seconds()
 
-			#Add ensemble information by changing model tag
-			self.ModelName = "Ensemble"
+			if self.EnsembleBool:
+				#Add ensemble information by changing model tag
+				self.ModelName = "Ensemble"
 
-			#Add final attributes to dataframe to check accuracy
-			self.EnsemblePreds['actual'] = self.Sample.Sample.iloc[:,-1]
-			self.EnsemblePreds['amount'] = self.Sample.TestData["Amount"]
+				#Add final attributes to dataframe to check accuracy
+				self.EnsembleTrainDF['actual'] = y_test.iloc[-1]
+				self.EnsembleTrainDF['amount'] = X_test_ensemble["Amount"]
 
-			#Evolve the ensemble model
-			self.EnsembleWts = self.Ensemble.evolve()
-			self.ModelPerf = self.evaluatePerformance(self.EnsemblePreds['ensemble_predicted'], self.EnsemblePreds['actual'],self.EnsemblePreds['amount'])
+				#Evolve the ensemble model and add performance metrics at the end
+				self.EnsembleWts = self.Ensemble.evolve()
+				self.EnsembleTestDF['ensemble_predicted'] = self.EnsembleTestDF.iloc[:,:5].apply(lambda row: round(sum(row*self.Ensemble.convertWts(self.Ensemble.BestWts))), axis = 1)
+				self.EnsembleTestDF['actual'] = self.Sample.TestData["Class"]
+				self.EnsembleTestDF['amount'] = self.Sample.TestData["Amount"]
 
-			#Add model performance of ensemble to results DF 
-			self.add_to_results_dict()
+				#Evaluate the performance of the model overall
+				self.ModelPerf = self.evaluatePerformance(self.EnsembleTestDF['ensemble_predicted'], self.EnsembleTestDF['actual'],self.EnsembleTestDF['amount'])
 
-			#Add record to Logger
-			self.Log.addResultRecord(self)
+				#Add model performance of ensemble to results DF 
+				self.add_to_results_dict()
 
-			#Reset ensemble prediction dataframe
-			self.EnsemblePreds = pd.DataFrame()
+				#Add record to Logger
+				self.Log.addResultRecord(self)
+
+				#Reset ensemble prediction dataframes for train and test
+				self.EnsembleTrainDF = pd.DataFrame()
+				self.EnsembleTestDF = pd.DataFrame()
 
 			#Resample master sample
 			self.Sample.Resample()

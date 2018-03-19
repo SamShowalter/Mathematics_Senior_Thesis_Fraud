@@ -17,7 +17,11 @@ class Sample():
 
 	 NOTE: ANY SMOTE TESTS WITH LESS THAN 492 FRAUD RECORDS WILL ESSENTIALLY BE UNDER-SAMPLING. ALWAYS HAVE MORE
 	'''
-	def __init__(self, dataset, sample_method = 'SMOTE', SMOTE_Neighbors = 5, target_ratio = 0.20, total_size = 2000):
+	def __init__(self, dataset, 
+					   sample_method = 'SMOTE', 
+					   SMOTE_Neighbors = 5, 
+					   target_ratio = 0.20, 
+					   total_size = 2000):
 		utc_start = dt.datetime.utcnow()
 
 		#Separate data into train and testing subsamples.
@@ -94,9 +98,8 @@ class Sample():
 		nonFraudSample = nonFraudRecords.sample(n = numNonFraudRecords)
 		nonFraudRemaining = nonFraudRecords[~nonFraudRecords.index.isin(nonFraudSample.index)]
 
-		#print(len(self.TestData),len(nonFraudRemaining))
+		#Test data
 		self.TestData = pd.concat([self.TestData, nonFraudRemaining], ignore_index = True)
-		#print(len(self.TestData))
 		self.Sample = self.Sample.append(nonFraudSample)
 
 		#Randomly picks fraud records from the fraud records dataframe above (with replacement)
@@ -156,9 +159,13 @@ class Sample():
 
 		#Create a random sample of the fraudulent and non-fraudulent data
 		nonFraudRecords = self.Data[self.Data.iloc[:,-1] != 1].sample(numNonFraudRecords)
-		#print(len(nonFraudRecords))
-		fraudRecords = self.Data[self.Data.iloc[:,-1] == 1].sample(numFraudRecords)
-		#print(len(fraudRecords))
+
+		#Remaining non-fraud records stored as testing data
+		nonFraudRemaining = nonFraudRecords[~nonFraudRecords.index.isin(nonFraudSample.index)]
+		self.TestData = pd.concat([self.TestData, nonFraudRemaining], ignore_index = True)
+
+		#Use ALL fraud records
+		fraudRecords = self.Data[self.Data.iloc[:,-1] == 1]
 
 		#Add these random samples to the final Sample
 		self.Sample = self.Sample.append(nonFraudRecords, ignore_index = True)

@@ -17,6 +17,7 @@ class Ensemble():
 					   timeoutMin = 0.2, 
 					   ceiling = 0.49,
 					   numWts = 5):
+	
 		self.GenerationSize = generationSize
 		self.NumGenerations = numGenerations
 		self.Modeler = modeler
@@ -26,7 +27,6 @@ class Ensemble():
 		self.NumWts = numWts
 		self.BestWts = np.array(np.random.uniform(0,2**40,self.NumWts)).astype(int)
 
-		print("\n\nEVOLUTION COMMENCING\n\n")
 		#Set random seed
 		#np.random.seed(random.randint(0,100))
 
@@ -38,17 +38,22 @@ class Ensemble():
 	def fitness(self, Wts):
 
 		#Get ensemble predictions column
-		self.Modeler.EnsemblePreds['ensemble_predicted'] = self.Modeler.EnsemblePreds.iloc[:,:5].apply(lambda row: round(sum(row*self.convertWts(Wts))), axis = 1)
+		self.Modeler.EnsembleTrainDF['ensemble_predicted'] = self.Modeler.EnsembleTrainDF.iloc[:,:5].apply(lambda row: round(sum(row*self.convertWts(Wts))), axis = 1)
 
 		#Get true positive and false positive values for 
-		TP = ((self.Modeler.EnsemblePreds.actual == 1) & (self.Modeler.EnsemblePreds.ensemble_predicted == 1)).value_counts().get(True,0)
-		FP = ((self.Modeler.EnsemblePreds.actual == 1) & (self.Modeler.EnsemblePreds.ensemble_predicted == 0)).value_counts().get(True,0) 
-		FN = ((self.Modeler.EnsemblePreds.actual == 0) & (self.Modeler.EnsemblePreds.ensemble_predicted == 1)).value_counts().get(True,0)
+		TP = ((self.Modeler.EnsembleTrainDF.actual == 1) & (self.Modeler.EnsembleTrainDF.ensemble_predicted == 1)).value_counts().get(True,0)
+		FP = ((self.Modeler.EnsembleTrainDF.actual == 1) & (self.Modeler.EnsembleTrainDF.ensemble_predicted == 0)).value_counts().get(True,0) 
+		FN = ((self.Modeler.EnsembleTrainDF.actual == 0) & (self.Modeler.EnsembleTrainDF.ensemble_predicted == 1)).value_counts().get(True,0)
 
 		#Get the total cost of the model
-		fraudChargesFound = self.Modeler.EnsemblePreds[(self.Modeler.EnsemblePreds.actual == 1) & (self.Modeler.EnsemblePreds.ensemble_predicted == 1)].loc[:,'amount'].sum()
-		fraudChargesLost = self.Modeler.EnsemblePreds[(self.Modeler.EnsemblePreds.actual == 1) & (self.Modeler.EnsemblePreds.ensemble_predicted == 0)].loc[:,'amount'].sum()
+		fraudChargesFound = self.Modeler.EnsembleTrainDF[(self.Modeler.EnsembleTrainDF.actual == 1) & (self.Modeler.EnsembleTrainDF.ensemble_predicted == 1)].loc[:,'amount'].sum()
+		fraudChargesLost = self.Modeler.EnsembleTrainDF[(self.Modeler.EnsembleTrainDF.actual == 1) & (self.Modeler.EnsembleTrainDF.ensemble_predicted == 0)].loc[:,'amount'].sum()
 
+		print(TP,FP,FN, fraudChargesFound, fraudChargesLost)
+
+		# print("\n Fraud Found and Lost")
+		# print(fraudChargesFound, fraudChargesLost)
+		# print("\n")
 		#Return the fraud cost
 		return self.Modeler.fraudCost(TP,fraudChargesFound,FP,fraudChargesLost,FN)
 
@@ -232,7 +237,7 @@ class Ensemble():
 			return s**40 - 1
 
 		#Return the ceiling number or less
-		return min(num, int(sum(self.BestWts) * self.Ceiling))
+		return num
 
 	#Convert discrete weights into percentages
 	def convertWts(self, Wts):
@@ -250,6 +255,9 @@ class Ensemble():
 			new_kid = np.array([1]*(self.NumWts))
 			for i in range(self.NumWts):
 				new_kid[i] = self.putInBounds(np.random.normal(self.BestWts[i],10000000))
+
+			#Set ceiling so that no number can have higher than the ceiling weight
+			new_kid = self.setCeiling(new_kid)
 			new_spawn.append(new_kid)
 
 
@@ -277,6 +285,9 @@ class Ensemble():
 
 
 	def evolve(self):
+
+		#Let the people know evolution is happening
+		print("\n\nEVOLUTION COMMENCING\n\n")
 
 		#Start time for execution
 		startTime = time.time()
@@ -353,12 +364,11 @@ class Ensemble():
 				print("\nTIMEOUT REACHED BEFORE GENERATIONS FINISHED. EXITING.")
 				break
 
-
 		#Print output
 		print("\nEVOLUTION FINISHED.\n\n" +
 			  "Generations Until Optimum Found: " + str(self.GensToBest) +
-			  "\nMaximum Fitness: " + str(self.Fitness) +
-			  "\nBest Variables: " + str(self.convertWts(self.BestWts)))
+			  "\nMinimum Cost: " + str(self.Fitness) +
+			  "\nBest Weights: " + str(self.convertWts(self.BestWts)))
 
 		return self.convertWts(self.BestWts)
 

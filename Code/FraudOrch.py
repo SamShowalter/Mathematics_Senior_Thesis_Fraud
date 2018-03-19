@@ -146,15 +146,15 @@ def generateProgressInformation(Test, ProgressInfo):
 #############################################################################################################################################
 s1 = Sample(fraud_data, 
 			sample_method = 'SMOTE',
-			total_size = 1000, 
+			total_size = 5000, 
 			target_ratio = 0.2)
 
 #make copies of the masterlog
 
 # Test(s1,Modeler(test_ratio = 0.3), MasterLog)
 Test(s1,
-	Modeler(test_ratio = 0.2, 
-			ensemble_bool = True, 
+	Modeler(test_ratio = 0.4, 
+			ensemble_bool = False, 
 			monte_carlo_samp_size = 1),
 	MasterLog)
 
