@@ -11,11 +11,17 @@ import operator
 
 class Ensemble():
 
-	def __init__(self, modeler, generationSize = 10, numGenerations = 100, timeoutMin = 1, numWts = 5):
+	def __init__(self, modeler, 
+					   generationSize = 10, 
+					   numGenerations = 100, 
+					   timeoutMin = 0.2, 
+					   ceiling = 0.49,
+					   numWts = 5):
 		self.GenerationSize = generationSize
 		self.NumGenerations = numGenerations
 		self.Modeler = modeler
 		self.TimeoutMin = timeoutMin
+		self.Ceiling = ceiling
 		self.Fitness = inf
 		self.NumWts = numWts
 		self.BestWts = np.array(np.random.uniform(0,2**40,self.NumWts)).astype(int)
@@ -176,10 +182,6 @@ class Ensemble():
 		#Only do it if the random Chance equals 0
 		if randomChance == 0:
 
-			#kid = subMutateOneV1(kid)
-			#kid = subMutateOneV2(kid)
-			#kid = subMutateOneV3(kid)
-
 			methodID = np.random.randint(len(methods))
 			kid = methods[methodID](kid)
 
@@ -190,7 +192,7 @@ class Ensemble():
 		newspawn = []
 		for kid in range(generationSize):
 			dad, mom = self.getParents(spawn, fitness)
-			newspawn.append(self.convertBinToVars(self.generateChild(dad,mom)))
+			newspawn.append(self.setCeiling(self.convertBinToVars(self.generateChild(dad,mom))))
 
 		return newspawn
 
@@ -212,13 +214,25 @@ class Ensemble():
 
 		return fitChart
 
+
+	def setCeiling(self, kid):
+		new_kid = np.array([1]*(self.NumWts))
+
+		#Make sure everything abides by the new ceiling
+		for num in range(len(kid)):
+			new_kid[num] = self.putInBounds(kid[num])
+		#Return the new kid
+		return new_kid
+
+	#Put a weight value in bounds (must be less than half)
 	def putInBounds(self,num):
 		if num < 0:
 			return 0
 		elif num > 2**40 - 1:
 			return s**40 - 1
 
-		return num
+		#Return the ceiling number or less
+		return min(num, int(sum(self.BestWts) * self.Ceiling))
 
 	#Convert discrete weights into percentages
 	def convertWts(self, Wts):
@@ -229,8 +243,11 @@ class Ensemble():
 	def fixInbreeding(self):
 		new_spawn = []
 
+		#Re-populate the spawn
 		for kid in range(self.GenerationSize):
-			new_kid = np.array([1]*(self.NumWts + 1))
+
+			#CHANGED WEIGHTS HERE
+			new_kid = np.array([1]*(self.NumWts))
 			for i in range(self.NumWts):
 				new_kid[i] = self.putInBounds(np.random.normal(self.BestWts[i],10000000))
 			new_spawn.append(new_kid)
@@ -294,10 +311,6 @@ class Ensemble():
 			#print(spawn)
 			spawn = self.createOffspring(spawn,fitness,self.GenerationSize)
 			spawn = self.mutate(spawn,mutateOccurence)
-
-			# print(self.convertBinToVars(dad), self.convertBinToVars(mom))
-			# print(" ".join([str(i) for i in spawn]))
-			# print("\n\n\n\n\n")
 
 		 	#Generate the fitness of each child
 			fitness = [self.fitness(kid) for kid in spawn]

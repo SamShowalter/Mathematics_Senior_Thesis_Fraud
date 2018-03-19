@@ -76,7 +76,6 @@ class Modeler():
 						k_fold_num = 1,
 						prec_wt = 0.5,
 						specific_model = None,
-						full_test = True,
 						default_cost = 1.0,
 						fraud_mult = 2.54):
 
@@ -89,13 +88,14 @@ class Modeler():
 		self.KFoldBool = k_fold_bool
 		self.KFoldNum = k_fold_num
 		self.EnsembleBool = ensemble_bool
+
+		#Houses all predictions for each model to be used in ensemble
 		if self.EnsembleBool:
 			self.EnsemblePreds = pd.DataFrame()
-		self.EnsembleActive = False
+
 		self.TestPeriodFoldSize = test_period_fold_size
 		self.TestRatio = test_ratio
 		self.MonteCarlo = monte_carlo
-		self.FullTest = full_test
 		self.MonteCarloSampSize = monte_carlo_samp_size
 		self.PrecisionWt = prec_wt
 		self.RecallWt = (1 - prec_wt)
@@ -139,7 +139,7 @@ class Modeler():
 
 		# IF monte carlo analysis is asked for
 		if self.MonteCarlo:
-			self.model_engine_orch(classifiers)
+			self.model_engine(classifiers)
 
 	'''
 	This is the sklearn KNN model. By passing in the train and test
@@ -296,7 +296,7 @@ class Modeler():
 		resultsDF['predicted'] = predicted
 		resultsDF['amount'] = amounts
 
-		if self.EnsembleBool and self.EnsembleActive:
+		if self.EnsembleBool:
 			self.EnsemblePreds[self.ModelName + "_preds"] = predicted
 
 		# Accuracy for the whole test
@@ -346,15 +346,21 @@ class Modeler():
 		return (-(TPAmt - self.DefCostAmt * TP*10) + FP*(self.DefCostAmt)) + FPAmt*(self.FraudMult) + (FN * (self.DefCostAmt))
 
 
-	'''
-	model_engine_orch determines which model engine to run (ensemble or not)
-	'''
-	def model_engine_orch(self,classifiers):
-		if not self.EnsembleBool:
-			self.model_engine_standard(classifiers)
+	def add_to_results_dict(self):
+		if self.ModelName not in self.ResultsDict:
+			self.ResultsDict[self.ModelName] = [self.ModelPerf]
 		else:
-			self.model_engine_standard(classifiers)
-			self.model_engine_ensemble(classifiers)
+			self.ResultsDict[self.ModelName].append(self.ModelPerf)
+
+	# '''
+	# model_engine_orch determines which model engine to run (ensemble or not)
+	# '''
+	# def model_engine_orch(self,classifiers):
+	# 	if not self.EnsembleBool:
+	# 		self.model_engine_standard(classifiers)
+	# 	else:
+	# 		self.model_engine_standard(classifiers)
+	# 		self.model_engine_ensemble(classifiers)
 
 	'''
 	Main engine of the model. For each model specified above, this 
@@ -369,7 +375,7 @@ class Modeler():
 	def model_engine_standard(self,classifiers):
 
 		# Results dictionary
-		results_dict = {}
+		self.ResultsDict = {}
 
 	    # Check all of classifiers
 		for classifier in classifiers:
@@ -408,13 +414,13 @@ class Modeler():
 				self.Sample.Resample()
 
 	        # Add results to results dict
-			results_dict[self.ModelName] = res_list
+			self.ResultsDict[self.ModelName] = res_list
 
 	        #Save Results Log
 			self.Log.saveResultsLog(self.ResLogFilename)
 
 	    #Format and store the average results
-		self.resultsDF = pd.DataFrame.from_dict(results_dict)
+		self.resultsDF = pd.DataFrame.from_dict(self.ResultsDict)
 		averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0).to_dict()
 
 	    #Store average results for each model (order does not matter because of keys)
@@ -431,12 +437,11 @@ class Modeler():
 	function will store the performance of each model, then record any additional information
 	about the ensemble's performance
 	'''
-	def model_engine_ensemble(self,classifiers):
+	def model_engine(self,classifiers):
 
-		#Active ensemble
-		self.EnsembleActive = True
-		model_tag = "Ensemble"
-
+		#Initialize self.ResultsDict
+		self.ResultsDict = {}
+		
 		# Check all of classifiers
 		for j in range(self.MonteCarloSampSize):
 
@@ -453,6 +458,7 @@ class Modeler():
 			#Run through and test each classifier to get base predictions
 			for classifier in classifiers:
 
+				#Get model name
 				self.ModelName = classifier.__name__.rsplit('_')[0]
 
 				#Start time for model
@@ -460,32 +466,43 @@ class Modeler():
 
 				#Get performance and other metadata
 				self.ModelPerf = classifier(X_train,X_test,y_train,y_test)
+
+				#Add model performance to results DF 
+				self.add_to_results_dict()
 				
 				#Get duration of the model
 				self.ModelDurationSec = (dt.datetime.utcnow() - startTime).total_seconds()
 
+			#Add ensemble information by changing model tag
+			self.ModelName = "Ensemble"
+
 			#Add final attributes to dataframe to check accuracy
-			self.EnsemblePreds['actual'] = self.Sample.Sample.iloc[:-1]
+			self.EnsemblePreds['actual'] = self.Sample.Sample.iloc[:,-1]
 			self.EnsemblePreds['amount'] = self.Sample.TestData["Amount"]
 
 			#Evolve the ensemble model
 			self.EnsembleWts = self.Ensemble.evolve()
-			self.ModelPerf = self.evaluatePerformance(self.Modeler.EnsemblePreds['ensemble_predicted'], self.Sample.TestData.iloc[:,-1])
+			self.ModelPerf = self.evaluatePerformance(self.EnsemblePreds['ensemble_predicted'], self.EnsemblePreds['actual'],self.EnsemblePreds['amount'])
 
-			#Get performance of the ensemble
-			res_list.append(self.ModelPerf)
+			#Add model performance of ensemble to results DF 
+			self.add_to_results_dict()
 
 			#Add record to Logger
 			self.Log.addResultRecord(self)
 
-		# Add results to results dict
-		results_dict[model_tag] = res_list
+			#Reset ensemble prediction dataframe
+			self.EnsemblePreds = pd.DataFrame()
+
+			#Resample master sample
+			self.Sample.Resample()
 
 		#Save Results Log
 		self.Log.saveResultsLog(self.ResLogFilename)
-
+		
 		#Format and store the average results
-		self.resultsDF = pd.DataFrame.from_dict(results_dict)
+		self.resultsDF = pd.DataFrame.from_dict(self.ResultsDict)
+
+		#Get average results
 		averageResults = self.resultsDF.apply(lambda col: tuple(map(np.mean, zip(*col))),axis = 0).to_dict()
 
 		#Store average results for each model (order does not matter because of keys)

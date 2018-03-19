@@ -155,8 +155,7 @@ s1 = Sample(fraud_data,
 Test(s1,
 	Modeler(test_ratio = 0.2, 
 			ensemble_bool = True, 
-			monte_carlo_samp_size = 1,
-			full_test = True),
+			monte_carlo_samp_size = 1),
 	MasterLog)
 
 #Save all data from masterlog
