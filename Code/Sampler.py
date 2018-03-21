@@ -21,7 +21,7 @@ class Sample():
 					   sample_method = 'SMOTE', 
 					   SMOTE_Neighbors = 5, 
 					   target_ratio = 0.20, 
-					   total_size = 2000):
+					   total_sample_size = 2000):
 		utc_start = dt.datetime.utcnow()
 
 		#Separate data into train and testing subsamples.
@@ -34,7 +34,7 @@ class Sample():
 		self.SampleMethod = sample_method
 		self.SMOTENeighbors = SMOTE_Neighbors
 		self.TargetRatio = target_ratio
-		self.TotalSize = total_size
+		self.TotalSampleSize = total_sample_size
 		self.SMOTENeighbors = SMOTE_Neighbors
 
 		#Run the sampler
@@ -49,28 +49,34 @@ class Sample():
 
 	#Resample master sample
 	def runSampler(self):
+		#Default the dataset
+		self.Sample = self.Sample[0:0]
 
 		#Get Training and testing data separation
 		self.Data = self.FullData.sample(frac = self.TargetRatio)
 		self.TestData = self.FullData[~self.FullData.index.isin(self.Data.index)]
+
+		#Get test data metadata
+		self.TotalTestDataRowNum = self.TestData.shape[0]
+		self.TestDataNonFraudRowNum = self.TestData[self.TestData.iloc[:,-1] != 1].shape[0]
+		self.TestDataFraudRowNum = self.TotalTestDataRowNum - self.TestDataNonFraudRowNum
 
 		#Orchestration package for sampler
 		self.Sample = self.SamplerOrch()
 
 		#Metadata about the composition of the sample
 		if self.SampleMethod == "Standard":
-			self.TotalRowNum = len(self.Sample.index)
-			self.NonFraudRowNum = len(self.Data[self.Data.iloc[:,-1] != 1])
-			self.FraudRowNum = len(self.Data[self.Data.iloc[:,-1] == 1].index)
+			self.TotalRowNum = self.Sample.shape[0]
+			self.NonFraudRowNum = len(self.Sample[self.Sample.iloc[:,-1] != 1])
+			self.FraudRowNum = len(self.Sample[self.Sample.iloc[:,-1] == 1].index)
 			self.FraudSynthRowNum = 0
 			self.FraudOrigRowNum = self.FraudRowNum
 
 		#If sampling with SMOTE or Under-sampling
 		else:
-			self.TotalRowNum = len(self.Sample.index)
-			self.NonFraudRowNum = int(self.TotalSize * (1-self.TargetRatio))
+			self.TotalRowNum = self.Sample.shape[0]
+			self.NonFraudRowNum = int(self.TotalSampleSize * (1-self.TargetRatio))
 			self.FraudRowNum = self.TotalRowNum - self.NonFraudRowNum
-			self.FraudSynthRowNum = max(self.FraudRowNum - len(self.Data[self.Data.iloc[:,-1] == 1].index), 0)
 			self.FraudOrigRowNum = self.FraudRowNum - self.FraudSynthRowNum
 
 
@@ -88,11 +94,10 @@ class Sample():
 		nonFraudRecords = self.Data[self.Data.iloc[:,-1] != 1]
 		fraudRecords = self.Data[self.Data.iloc[:,-1] == 1]
 
-		print(len(fraudRecords),len(nonFraudRecords))
-
 		# Find the number of Non-fraudulent records and synthetic fraudulent records needed
-		numNonFraudRecords = int(self.TotalSize * (1-self.TargetRatio))
-		numSynthFraudRecords = max(int(self.TotalSize * self.TargetRatio) - len(fraudRecords.index), 0)
+		numNonFraudRecords = int(self.TotalSampleSize * (1-self.TargetRatio))
+		numSynthFraudRecords = max(int(self.TotalSampleSize * self.TargetRatio) - len(fraudRecords.index), 0)
+		self.FraudSynthRowNum = numSynthFraudRecords
 
 		#Add random sample of original records
 		nonFraudSample = nonFraudRecords.sample(n = numNonFraudRecords)
@@ -143,6 +148,11 @@ class Sample():
 		#Add all of the original fraud records to the dataframe
 		self.Sample = self.Sample.append(fraudRecords, ignore_index = True)
 
+		#Reset index of Sample
+		self.Sample.reset_index(drop = True, inplace = True)
+
+		#print(len(fraudRecords), numSynthFraudRecords, len(nonFraudSample))
+
 		# Return Sample
 		return self.Sample
 
@@ -154,8 +164,8 @@ class Sample():
 	def UnderSampler(self):
 
 		# Find the number of Non-fraudulent records and fraudulent records needed
-		numNonFraudRecords = int(self.TotalSize * (1-self.TargetRatio))
-		numFraudRecords = int(self.TotalSize * self.TargetRatio)
+		numNonFraudRecords = int(self.TotalSampleSize * (1-self.TargetRatio))
+		numFraudRecords = int(self.TotalSampleSize * self.TargetRatio)
 
 		#Create a random sample of the fraudulent and non-fraudulent data
 		nonFraudRecords = self.Data[self.Data.iloc[:,-1] != 1].sample(numNonFraudRecords)

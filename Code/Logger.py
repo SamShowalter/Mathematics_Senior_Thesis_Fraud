@@ -42,14 +42,18 @@ class Log():
 								       test.Sample.FraudOrigRowNum,		#Fraud original rows
 								       test.Sample.FraudSynthRowNum,	#Fraud synthetic rows
 
+								       #Information about test data
+								       test.Sample.TotalTestDataRowNum,		#Total rows
+								       test.Sample.TestDataNonFraudRowNum,	#Non Fraud rows
+								       test.Sample.TestDataFraudRowNum,     #Fraud row num
+
 								       #Information from modeler
 								       test.Modeler.Classifiers,
 								       test.Modeler.SVMParams,
 								       test.Modeler.RFEstimators,
 								       test.Modeler.KNNeighbors,
-								       test.Modeler.MonteCarlo,
+								       test.Modeler.LOGParams,
 								       test.Modeler.MonteCarloSampSize,
-								       test.Modeler.KFoldBool, test.Modeler.KFoldNum,
 								       test.Modeler.PrecisionWt, test.Modeler.RecallWt,
 
 								       #Information about cost (from modeler)

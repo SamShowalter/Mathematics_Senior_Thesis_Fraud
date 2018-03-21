@@ -65,7 +65,8 @@ class Modeler():
 	def __init__(self,
 						sample = None,
 					    test_ratio = 0.4,		
-						n_neighbors = 5, 					
+						n_neighbors = 5, 
+						LOGparams = ("l1",1),					
 						SVMparams = ('rbf',1,5), 			
 						n_estimators = 30,					
 						monte_carlo_samp_size = 30,
@@ -79,6 +80,7 @@ class Modeler():
 		#ML Model parameters
 		self.KNNeighbors = n_neighbors
 		self.SVMParams = SVMparams
+		self.LOGParams = LOGparams
 		self.RFEstimators = n_estimators
 
 		# Performance and logistic information
@@ -203,7 +205,7 @@ class Modeler():
 	found with the function iter_accuracy.
 	'''
 	def LOG_train_test_model(self, X_train, X_test, y_train, y_test, ensemble_train = False):
-		LOG_clf = LogisticRegression()
+		LOG_clf = LogisticRegression(penalty = self.LOGParams[0], C = self.LOGParams[1])
 		LOG_clf.fit(X_train, y_train)
 		predicted = LOG_clf.predict(X_test)
 		actual = y_test
@@ -284,8 +286,6 @@ class Modeler():
 	Evaluate performance of a test. All metrics used
 	'''
 	def evaluatePerformance(self,actual, predicted, amounts, ensemble_train = False):
-		# Variable initialization for consistent logging
-		self.EnsembleWts = (0,0,0,0,0)
 
 		#Results data frame (for finding costs)
 		resultsDF = pd.DataFrame()
@@ -360,6 +360,9 @@ class Modeler():
 	'''
 	def model_engine(self,classifiers):
 
+		#Resample master sample before results collected
+		self.Sample.Resample()
+
 		#Initialize self.ResultsDict
 		self.ResultsDict = {}
 		
@@ -380,7 +383,7 @@ class Modeler():
 
 				#Get train and test variables, ignoring all test Data
 				X_train_ensemble, X_test_ensemble, y_train_ensemble, y_test_ensemble = train_test_split(self.Sample.Sample.iloc[:,:-1],self.Sample.Sample.iloc[:,-1],test_size = self.TestRatio)
-				
+
 				#Rest index in testing data
 				X_test_ensemble.Amount.reset_index(drop = True, inplace = True)
 				y_test_ensemble.reset_index(drop = True, inplace = True)
@@ -413,17 +416,19 @@ class Modeler():
 				self.ModelName = "Ensemble"
 
 				#Add final attributes to dataframe to check accuracy
-				self.EnsembleTrainDF['actual'] = y_test.iloc[-1]
+				self.EnsembleTrainDF['actual'] = y_test_ensemble
 				self.EnsembleTrainDF['amount'] = X_test_ensemble["Amount"]
 
 				#Evolve the ensemble model and add performance metrics at the end
 				self.EnsembleWts = self.Ensemble.evolve()
+
+				#Add final attributes to get performance
 				self.EnsembleTestDF['ensemble_predicted'] = self.EnsembleTestDF.iloc[:,:5].apply(lambda row: round(sum(row*self.Ensemble.convertWts(self.Ensemble.BestWts))), axis = 1)
-				self.EnsembleTestDF['actual'] = self.Sample.TestData["Class"]
-				self.EnsembleTestDF['amount'] = self.Sample.TestData["Amount"]
+				self.EnsembleTestDF['actual'] = y_test
+				self.EnsembleTestDF['amount'] = X_test["Amount"]
 
 				#Evaluate the performance of the model overall
-				self.ModelPerf = self.evaluatePerformance(self.EnsembleTestDF['ensemble_predicted'], self.EnsembleTestDF['actual'],self.EnsembleTestDF['amount'])
+				self.ModelPerf = self.evaluatePerformance(self.EnsembleTestDF['actual'],self.EnsembleTestDF['ensemble_predicted'],self.EnsembleTestDF['amount'])
 
 				#Add model performance of ensemble to results DF 
 				self.add_to_results_dict()
@@ -434,9 +439,6 @@ class Modeler():
 				#Reset ensemble prediction dataframes for train and test
 				self.EnsembleTrainDF = pd.DataFrame()
 				self.EnsembleTestDF = pd.DataFrame()
-
-			#Resample master sample
-			self.Sample.Resample()
 
 		#Save Results Log
 		self.Log.saveResultsLog(self.ResLogFilename)

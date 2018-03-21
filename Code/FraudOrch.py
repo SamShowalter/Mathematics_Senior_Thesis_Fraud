@@ -30,11 +30,14 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 
 									#Sampler rows
 									"Sample_Method",
-									"Total_Row_Num",
-									"NonFraud_Row_Num",
-									"Fraud_Row_Num",
-									"Fraud_Orig_Row_Num",
-									"Fraud_Synth_Row_Num",
+									"Total_Sample_Row_Num",
+									"Sample_NonFraud_Row_Num",
+									"Sample_Fraud_Row_Num",
+									"Sample_Fraud_Orig_Row_Num",
+									"Sample_Fraud_Synth_Row_Num",
+									"Total_Test_Data_Row_Num",
+									"Test_Data_NonFraud_Row_Num",
+									"Test_Data_Fraud_Row_Num",
 									#6
 
 									#Modeler Meta-parameters
@@ -42,9 +45,8 @@ MasterLog = Log("Test_Master_Log", "Test_Results_Log",
 									"SVM_Params",
 									"RF_Estimators",
 									"KNN_Neighbors",
-									"Monte_Carlo_Bool",
+									"LOG_Params",
 									"Monte_Carlo_Samp_Size",
-									"Kfold_Bool", "Kfold_Num",
 									"Precision_Wt", "Recall_Wt",
 									
 									#Cost metaparameters
@@ -146,7 +148,7 @@ def generateProgressInformation(Test, ProgressInfo):
 #############################################################################################################################################
 s1 = Sample(fraud_data, 
 			sample_method = 'SMOTE',
-			total_size = 5000, 
+			total_sample_size = 1000, 
 			target_ratio = 0.2)
 
 #make copies of the masterlog
@@ -154,12 +156,12 @@ s1 = Sample(fraud_data,
 # Test(s1,Modeler(test_ratio = 0.3), MasterLog)
 Test(s1,
 	Modeler(test_ratio = 0.4, 
-			ensemble_bool = False, 
+			ensemble_bool = True, 
 			monte_carlo_samp_size = 1),
 	MasterLog)
 
 #Save all data from masterlog
-#MasterLog.saveMasterLog()
+MasterLog.saveMasterLog()
 
 
 

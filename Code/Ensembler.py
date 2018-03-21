@@ -12,9 +12,9 @@ import operator
 class Ensemble():
 
 	def __init__(self, modeler, 
-					   generationSize = 10, 
+					   generationSize = 50, 
 					   numGenerations = 100, 
-					   timeoutMin = 0.2, 
+					   timeoutMin = 1, 
 					   ceiling = 0.49,
 					   numWts = 5):
 	
@@ -26,13 +26,6 @@ class Ensemble():
 		self.Fitness = inf
 		self.NumWts = numWts
 		self.BestWts = np.array(np.random.uniform(0,2**40,self.NumWts)).astype(int)
-
-		#Set random seed
-		#np.random.seed(random.randint(0,100))
-
-		#self.evolve()
-
-		#self.printCoefficients()
 
 	#Determine the fitness of the specific weights
 	def fitness(self, Wts):
@@ -49,7 +42,7 @@ class Ensemble():
 		fraudChargesFound = self.Modeler.EnsembleTrainDF[(self.Modeler.EnsembleTrainDF.actual == 1) & (self.Modeler.EnsembleTrainDF.ensemble_predicted == 1)].loc[:,'amount'].sum()
 		fraudChargesLost = self.Modeler.EnsembleTrainDF[(self.Modeler.EnsembleTrainDF.actual == 1) & (self.Modeler.EnsembleTrainDF.ensemble_predicted == 0)].loc[:,'amount'].sum()
 
-		print(TP,FP,FN, fraudChargesFound, fraudChargesLost)
+		#print(TP,FP,FN, fraudChargesFound, fraudChargesLost)
 
 		# print("\n Fraud Found and Lost")
 		# print(fraudChargesFound, fraudChargesLost)
@@ -197,7 +190,7 @@ class Ensemble():
 		newspawn = []
 		for kid in range(generationSize):
 			dad, mom = self.getParents(spawn, fitness)
-			newspawn.append(self.setCeiling(self.convertBinToVars(self.generateChild(dad,mom))))
+			newspawn.append(self.convertBinToVars(self.generateChild(dad,mom)))
 
 		return newspawn
 
@@ -219,15 +212,18 @@ class Ensemble():
 
 		return fitChart
 
-
+	#Set ceiling for values so that they do not go above
 	def setCeiling(self, kid):
 		new_kid = np.array([1]*(self.NumWts))
 
 		#Make sure everything abides by the new ceiling
 		for num in range(len(kid)):
-			new_kid[num] = self.putInBounds(kid[num])
+			new_kid[num] = self.setCeilingNum(kid[num],sum(kid))
 		#Return the new kid
 		return new_kid
+
+	def setCeilingNum(self,num,kidSum):
+		return min(num, int(kidSum*self.Ceiling))
 
 	#Put a weight value in bounds (must be less than half)
 	def putInBounds(self,num):
@@ -254,7 +250,7 @@ class Ensemble():
 			#CHANGED WEIGHTS HERE
 			new_kid = np.array([1]*(self.NumWts))
 			for i in range(self.NumWts):
-				new_kid[i] = self.putInBounds(np.random.normal(self.BestWts[i],10000000))
+				new_kid[i] = self.putInBounds(np.random.normal(self.BestWts[i],100000000/self.Generation))
 
 			#Set ceiling so that no number can have higher than the ceiling weight
 			new_kid = self.setCeiling(new_kid)
@@ -316,6 +312,10 @@ class Ensemble():
 
 		#Evolve the sample
 		for generation in range(self.NumGenerations):
+
+			#Make use of generation to update weights
+			self.Generation = generation
+
 			hyper_spawn = []
 
 			#Generate children
@@ -332,12 +332,12 @@ class Ensemble():
 				#Update Fitness and variable values
 				self.GensToBest = generation
 				self.Fitness = min(fitness)
-				self.BestWts = spawn[fitness.index(self.Fitness)]
+				self.BestWts = self.setCeiling(spawn[fitness.index(self.Fitness)])
 
 			#Update spawn if population grows stale after awhile
 			else:
 				noChange += 1
-				if noChange == 5:
+				if noChange == 2:
 					noChange = 0
 					spawn = self.fixInbreeding()
 
@@ -353,6 +353,7 @@ class Ensemble():
 			time_left = (self.TimeoutMin * 60) - int(time.time() - startTime)
 
 			#Print out the fitness
+			self.BestWts = self.setCeiling(self.BestWts)
 			outputInfo = '{:<5} {:<10} {:<16}  {:<100}'.format(generation,
 														str((self.TimeoutMin * 60) - int(time.time() - startTime)),
 														"{0:.2f}".format(round(self.Fitness,2)),

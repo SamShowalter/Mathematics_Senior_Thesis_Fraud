@@ -32,7 +32,7 @@ class Test():
 		self.TestDuration = (dt.datetime.utcnow() - utc_exec_start).total_seconds()
 		
 		#Add masterlog record
-		#self.Log.addMasterLogRecord(self)
+		self.Log.addMasterLogRecord(self)
 
 
 
